@@ -1,4 +1,4 @@
-// dom/qianwen.js - 通义千问 DOM提取适配器
+// dom/qianwen.js - 千问 DOM提取适配器
 
 // 注册DOM适配器
 if (typeof DOM_ADAPTERS === 'undefined') window.DOM_ADAPTERS = {};

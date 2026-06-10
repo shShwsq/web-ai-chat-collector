@@ -7,7 +7,7 @@
 | 平台 | 网络拦截模式 | DOM 模式 |
 |------|:----------:|:-------:|
 | DeepSeek (chat.deepseek.com) | ✅ | ✅ |
-| 通义千问 (qianwen.com) | ✅ | ✅ |
+| 千问 (qianwen.com) | ✅ | ✅ |
 | 复旦 AI Agent (aiagent.fudan.edu.cn) | ✅ | ✅ |
 
 ## 模式说明

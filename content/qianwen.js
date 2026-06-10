@@ -1,4 +1,4 @@
-// qianwen.js - 通义千问 平台入口
+// qianwen.js - 千问 平台入口
 
 // 网络拦截器必须在最早时机启动，不能等DOMContentLoaded
 // 否则会错过页面初始的API请求

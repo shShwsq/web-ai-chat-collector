@@ -1,4 +1,4 @@
-// network/qianwen.js - 通义千问 网络拦截适配器
+// network/qianwen.js - 千问 网络拦截适配器
 // 依赖：network/common.js
 
 // 缓存对话标题：sessionId -> title

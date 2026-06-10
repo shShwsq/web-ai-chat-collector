@@ -216,7 +216,7 @@ class FloatingBall {
 
       const platformNames = {
         deepseek: 'DeepSeek', chatgpt: 'ChatGPT', claude: 'Claude',
-        kimi: 'Kimi', qianwen: '通义千问', yiyan: '文心一言'
+        kimi: 'Kimi', qianwen: '千问', yiyan: '文心一言'
       };
 
       listEl.innerHTML = '';
@@ -309,7 +309,7 @@ class FloatingBall {
     const platformNames = {
       deepseek: 'DeepSeek',
       kimi: 'Kimi',
-      qianwen: '通义千问',
+      qianwen: '千问',
       yiyan: '文心一言'
     };
     const options = ['<option value="">全部平台</option>'];

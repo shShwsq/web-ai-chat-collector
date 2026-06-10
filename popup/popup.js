@@ -133,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
       chatgpt: 'ChatGPT',
       claude: 'Claude',
       kimi: 'Kimi',
-      qianwen: '通义千问',
+      qianwen: '千问',
       yiyan: '文心一言'
     };
 
@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
       chatgpt: 'ChatGPT',
       claude: 'Claude',
       kimi: 'Kimi',
-      qianwen: '通义千问',
+      qianwen: '千问',
       yiyan: '文心一言'
     };
 
