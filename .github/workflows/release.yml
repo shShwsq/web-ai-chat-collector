@@ -1,0 +1,58 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate manifest.json
+        run: |
+          python3 -c "
+          import json
+          with open('manifest.json') as f:
+              m = json.load(f)
+          assert m.get('manifest_version') == 3, 'manifest_version must be 3'
+          assert m.get('name'), 'name is required'
+          assert m.get('version'), 'version is required'
+          print(f'Extension: {m[\"name\"]} v{m[\"version\"]}')
+          "
+
+      - name: Check JS syntax
+        run: |
+          npm install -g acorn
+          errors=0
+          for f in $(find . -name '*.js' -not -path './lib/*' -not -path './node_modules/*'); do
+            if ! acorn --ecma2020 "$f" > /dev/null 2>&1; then
+              echo "Syntax error in $f"
+              errors=$((errors + 1))
+            fi
+          done
+          if [ $errors -gt 0 ]; then
+            echo "$errors file(s) with syntax errors"
+            exit 1
+          fi
+          echo "All JS files passed syntax check"
+
+      - name: Package extension
+        run: |
+          mkdir -p dist
+          # Exclude development files
+          zip -r dist/ai-chat-collector.zip . \
+            -x ".git/*" \
+            -x ".github/*" \
+            -x "references/*" \
+            -x "dist/*" \
+            -x ".gitignore" \
+            -x "*.md"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/ai-chat-collector.zip
+          generate_release_notes: true
