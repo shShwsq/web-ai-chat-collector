@@ -1,4 +1,4 @@
-# AI Chat Exporter
+# web-ai-chat-collector-plugin
 
 浏览器扩展，自动采集和导出 AI 对话记录。
 

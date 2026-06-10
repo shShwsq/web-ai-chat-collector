@@ -1,4 +1,4 @@
-# AI Chat Exporter
+# web-ai-chat-collector-plugin
 
 A browser extension that automatically captures and exports AI conversation records.
 
