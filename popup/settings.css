@@ -121,6 +121,28 @@ header h1 {
   text-decoration: underline;
 }
 
+/* 复选框行（用于向量库内容过滤等开关） */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.checkbox-row input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #7c3aed;
+}
+
+.checkbox-row label {
+  margin-bottom: 0;
+  font-weight: 400;
+  cursor: pointer;
+  user-select: none;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

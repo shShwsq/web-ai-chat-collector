@@ -32,6 +32,19 @@
         <input type="password" id="dashscopeEmbeddingKey" placeholder="sk-..." />
         <small>在 <a href="https://dashscope.console.aliyun.com/" target="_blank">阿里云百炼控制台</a> 获取</small>
       </div>
+
+      <div class="form-group">
+        <label>向量库对话内容</label>
+        <div class="checkbox-row">
+          <input type="checkbox" id="includeThinking" checked />
+          <label for="includeThinking">包含深度思考内容</label>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="includeSearch" checked />
+          <label for="includeSearch">包含联网搜索结果</label>
+        </div>
+        <small>取消勾选后，对应内容不会进入向量库（仅影响新嵌入的内容；历史向量需「重建向量索引」生效）</small>
+      </div>
     </section>
 
     <!-- 向量库设置 -->

@@ -11,6 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---- 表单元素 ----
   const embeddingModel = document.getElementById('embeddingModel');
   const dashscopeEmbeddingKey = document.getElementById('dashscopeEmbeddingKey');
+  const includeThinking = document.getElementById('includeThinking');
+  const includeSearch = document.getElementById('includeSearch');
 
   const vectorStoreType = document.getElementById('vectorStoreType');
   const remoteVectorConfig = document.getElementById('remoteVectorConfig');
@@ -67,6 +69,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (embResp) {
       embeddingModel.value = embResp.model || 'text-embedding-v4';
       dashscopeEmbeddingKey.value = embResp.dashscopeKey || '';
+      includeThinking.checked = embResp.includeThinking !== false;
+      includeSearch.checked = embResp.includeSearch !== false;
     }
 
     // 向量库设置
@@ -107,7 +111,9 @@ document.addEventListener('DOMContentLoaded', () => {
       category: 'embedding',
       settings: {
         model: embeddingModel.value,
-        dashscopeKey: dashscopeEmbeddingKey.value
+        dashscopeKey: dashscopeEmbeddingKey.value,
+        includeThinking: includeThinking.checked,
+        includeSearch: includeSearch.checked
       }
     });
 

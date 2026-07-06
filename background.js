@@ -400,7 +400,12 @@ async function handleSaveSettings(category, settings) {
     switch (category) {
       case 'embedding':
         await saveEmbeddingSettings(settings);
-        await EmbeddingService.setConfig({ dashscopeKey: settings.dashscopeKey, model: settings.model });
+        await EmbeddingService.setConfig({
+          dashscopeKey: settings.dashscopeKey,
+          model: settings.model,
+          includeThinking: settings.includeThinking,
+          includeSearch: settings.includeSearch
+        });
         break;
       case 'vectorStore':
         await saveVectorStoreSettings(settings);
@@ -450,7 +455,10 @@ async function handleRebuildIndex() {
     for (const conv of list) {
       for (const msg of conv.messages) {
         if (!msg.content || !msg.content.trim()) continue;
-        const vector = await EmbeddingService.embed(msg.content);
+        // 根据设置剥离 <think>/<search_result> 块后再 embedding
+        const embedContent = EmbeddingService.filterContentForEmbedding(msg.content);
+        if (!embedContent) continue;
+        const vector = await EmbeddingService.embed(embedContent);
         if (vector) {
           const embId = `${conv.id}::msg::${msg.hash || count}`;
           await VectorStore.addVector(embId, vector, { convId: conv.id });
@@ -476,7 +484,10 @@ async function handleTriggerEmbedding(convId, messages) {
 
     for (const msg of messages) {
       if (!msg.content || !msg.content.trim()) continue;
-      const vector = await EmbeddingService.embed(msg.content);
+      // 根据设置剥离 <think>/<search_result> 块后再 embedding
+      const embedContent = EmbeddingService.filterContentForEmbedding(msg.content);
+      if (!embedContent) continue;
+      const vector = await EmbeddingService.embed(embedContent);
       if (vector) {
         const embId = `${convId}::msg::${msg.hash || Date.now()}`;
         await VectorStore.addVector(embId, vector, { convId });
@@ -538,7 +549,7 @@ async function handleResetAllSettings() {
   try {
     await chrome.storage.local.clear();
     // 重新初始化服务
-    await EmbeddingService.setConfig({ dashscopeKey: '', model: 'text-embedding-v4' });
+    await EmbeddingService.setConfig({ dashscopeKey: '', model: 'text-embedding-v4', includeThinking: true, includeSearch: true });
     await VectorStore.setBackend('local', {});
     await LLMService.setBackend('dashscope', {});
     console.log('[BG] 已重置所有设置');
