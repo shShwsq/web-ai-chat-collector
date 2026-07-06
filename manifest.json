@@ -13,7 +13,8 @@
     "https://chat.deepseek.com/*",
     "https://www.qianwen.com/*",
     "https://dashscope.aliyuncs.com/*",
-    "https://aiagent.fudan.edu.cn/*"
+    "https://aiagent.fudan.edu.cn/*",
+    "https://www.doubao.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -96,6 +97,32 @@
         "content/fudan.js"
       ],
       "run_at": "document_start"
+    },
+    {
+      "matches": ["https://www.doubao.com/*"],
+      "js": [
+        "content/network-interceptor.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.doubao.com/*"],
+      "js": [
+        "lib/marked.min.js",
+        "lib/katex.min.js",
+        "content/adapter-registry.js",
+        "content/ui/styles.js",
+        "content/ui/viewer.js",
+        "content/ui/floating-ball.js",
+        "content/ai-ball.js",
+        "content/exporter-base.js",
+        "content/network/common.js",
+        "content/network/doubao.js",
+        "content/dom/doubao.js",
+        "content/doubao.js"
+      ],
+      "run_at": "document_start"
     }
   ],
   "action": {
@@ -104,6 +131,6 @@
   },
   "web_accessible_resources": [{
     "resources": ["lib/katex.min.css"],
-    "matches": ["https://chat.deepseek.com/*", "https://www.qianwen.com/*", "https://aiagent.fudan.edu.cn/*"]
+    "matches": ["https://chat.deepseek.com/*", "https://www.qianwen.com/*", "https://aiagent.fudan.edu.cn/*", "https://www.doubao.com/*"]
   }]
 }

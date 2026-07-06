@@ -128,10 +128,31 @@ class ChatExporterBase {
       url?.substring(0, 100), isStream, !!requestBody);
     
     const conversation = adapter.parse(url, data, requestBody);
-    
+
     if (!conversation) {
       // parse 返回 null 是正常的（如标题缓存类 API），不打 warn
       console.log('[Exporter/Debug] adapter.parse 返回 null, URL: %s', url?.substring(0, 80));
+      return;
+    }
+
+    // 标题更新（来自会话信息 API，不携带消息）：只更新标题，不覆盖消息
+    if (conversation.titleUpdate) {
+      console.log('[Exporter/Debug] 标题更新: convId=%s, title=%s', conversation.id, conversation.title);
+      // 同步更新内存中的对话标题
+      const existing = this.conversations.get(conversation.id);
+      if (existing) {
+        existing.title = conversation.title;
+      }
+      this.saveConversation({
+        platform: this.platformName,
+        platformConversationId: conversation.id,
+        title: conversation.title,
+        url: conversation.url || window.location.href,
+        mode: 'updateTitle',
+        messages: []
+      }).catch(err => {
+        if (err.message !== 'CONTEXT_INVALIDATED') console.error('[Exporter] 更新标题失败:', err);
+      });
       return;
     }
     
