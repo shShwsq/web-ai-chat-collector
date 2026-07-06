@@ -71,6 +71,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       dbGetStatus().then(sendResponse);
       break;
 
+    case 'GET_STORAGE_INFO':
+      dbGetStorageInfo().then(sendResponse);
+      break;
+
     case 'SEARCH_CONVERSATIONS':
       dbSearchConversations(message.query, message.filters).then(sendResponse);
       break;
@@ -134,6 +138,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       handleClearEmbeddings().then(sendResponse);
       break;
 
+    case 'CLEAR_VECTOR_STORE':
+      handleClearVectorStore().then(sendResponse);
+      break;
+
+    case 'GET_VECTOR_STORE_STATS':
+      handleGetVectorStoreStats().then(sendResponse);
+      break;
+
     case 'CLEAR_ALL_CONVERSATIONS':
       handleClearAllConversations().then(sendResponse);
       break;
@@ -177,6 +189,15 @@ async function dbDeleteConversation(id) {
 
 async function dbGetStatus() {
   return await getStatus();
+}
+
+async function dbGetStorageInfo() {
+  try {
+    return await getStorageInfo();
+  } catch (e) {
+    console.error('[BG] 获取存储信息失败:', e);
+    return { error: e.message };
+  }
 }
 
 async function dbSearchConversations(query, filters) {
@@ -503,22 +524,30 @@ async function handleTriggerEmbedding(convId, messages) {
 
 // ===== 数据管理 =====
 
+// 清空向量索引（兼容旧消息，根据当前后端分别处理）
 async function handleClearEmbeddings() {
+  return await handleClearVectorStore();
+}
+
+// 清空向量库（本地=IndexedDB；远程=远程 collection）
+async function handleClearVectorStore() {
   try {
-    const all = await getAllEmbeddings();
-    const db = await openEmbeddingDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(EMBEDDING_STORE, 'readwrite');
-      const store = tx.objectStore(EMBEDDING_STORE);
-      store.clear();
-      tx.oncomplete = () => {
-        console.log(`[BG] 已清空向量索引，共 ${all.length} 条`);
-        resolve({ success: true, count: all.length });
-      };
-      tx.onerror = () => resolve({ success: false, error: tx.error?.message });
-    });
+    const result = await VectorStore.clearCollection();
+    console.log(`[BG] 已清空向量库（后端: ${VectorStore.getBackend()}），结果:`, result);
+    return result;
   } catch (e) {
+    console.error('[BG] 清空向量库失败:', e);
     return { success: false, error: e.message };
+  }
+}
+
+// 获取向量库统计
+async function handleGetVectorStoreStats() {
+  try {
+    return await VectorStore.getStats();
+  } catch (e) {
+    console.error('[BG] 获取向量库统计失败:', e);
+    return { error: e.message };
   }
 }
 
@@ -530,15 +559,9 @@ async function handleClearAllConversations() {
       await deleteConversation(conv.id);
       count++;
     }
-    // 同时清空向量索引
-    const embAll = await getAllEmbeddings();
-    const embDb = await openEmbeddingDB();
-    await new Promise((resolve) => {
-      const tx = embDb.transaction(EMBEDDING_STORE, 'readwrite');
-      tx.objectStore(EMBEDDING_STORE).clear();
-      tx.oncomplete = resolve;
-    });
-    console.log(`[BG] 已清空所有对话（${count} 条）和向量索引（${embAll.length} 条）`);
+    // 同时清空向量库（本地或远程，根据当前后端）
+    await VectorStore.clearCollection();
+    console.log(`[BG] 已清空所有对话（${count} 条）和向量库（后端: ${VectorStore.getBackend()}）`);
     return { success: true, count };
   } catch (e) {
     return { success: false, error: e.message };

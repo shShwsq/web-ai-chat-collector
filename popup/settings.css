@@ -83,6 +83,181 @@ header h1 {
   margin-bottom: 4px;
 }
 
+/* 帮助问号图标 */
+.help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: #d1d5db;
+  color: #fff;
+  font-size: 10px;
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+  vertical-align: middle;
+  transition: background 0.15s;
+}
+
+.help-icon:hover {
+  background: #7c3aed;
+}
+
+/* select 下方动态帮助链接 */
+.help-link {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+}
+
+.help-icon-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 10px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.help-link a {
+  color: #7c3aed;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.help-link a:hover {
+  text-decoration: underline;
+}
+
+/* 帮助弹窗 */
+.help-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.help-overlay.open {
+  display: flex;
+}
+
+.help-box {
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.help-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #7c3aed;
+  color: #fff;
+}
+
+.help-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.help-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.help-close:hover {
+  opacity: 0.8;
+}
+
+.help-body {
+  padding: 16px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #374151;
+}
+
+.help-body h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111;
+  margin: 12px 0 6px;
+}
+
+.help-body h4:first-child {
+  margin-top: 0;
+}
+
+.help-body p {
+  margin: 6px 0;
+}
+
+.help-body code {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  padding: 1px 4px;
+  background: #f3f4f6;
+  border-radius: 3px;
+  color: #7c3aed;
+}
+
+.help-body pre {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  color: #374151;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+.help-body ol,
+.help-body ul {
+  padding-left: 20px;
+  margin: 6px 0;
+}
+
+.help-body a {
+  color: #7c3aed;
+  text-decoration: none;
+}
+
+.help-body a:hover {
+  text-decoration: underline;
+}
+
 .form-group input,
 .form-group select {
   width: 100%;
@@ -207,6 +382,146 @@ header h1 {
 
 .danger-zone .form-group:last-child {
   border-bottom: none;
+}
+
+/* ===== 存储位置信息区块 ===== */
+
+.storage-info-section {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+}
+
+.storage-info-section h2 {
+  color: #0369a1;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.info-code {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  padding: 4px 8px;
+  background: #e0f2fe;
+  border: 1px solid #7dd3fc;
+  border-radius: 4px;
+  color: #075985;
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+}
+
+.info-text {
+  font-size: 12px;
+  color: #374151;
+  padding: 6px 0;
+}
+
+.info-code-block {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  padding: 8px 10px;
+  margin: 4px 0;
+  background: #e0f2fe;
+  border: 1px solid #7dd3fc;
+  border-radius: 4px;
+  color: #075985;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.info-list {
+  font-size: 12px;
+  color: #374151;
+  padding-left: 20px;
+  line-height: 1.7;
+}
+
+.info-list code {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  padding: 1px 4px;
+  background: #e0f2fe;
+  border-radius: 3px;
+  color: #075985;
+}
+
+.btn-mini {
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 4px;
+}
+
+/* 折叠区域 */
+.collapsible-header {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  padding: 6px 0;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.collapsible-header:hover {
+  color: #0369a1;
+}
+
+.collapsible-header .arrow {
+  display: inline-block;
+  transition: transform 0.2s;
+  font-size: 10px;
+  color: #6b7280;
+}
+
+/* 折叠状态：箭头朝右（展开时朝下，所以这里 collapsed 转动一下） */
+.collapsible-header.collapsed .arrow {
+  transform: rotate(-90deg);
+}
+
+.collapsible-body {
+  padding: 8px 0 4px 16px;
+  overflow: hidden;
+  transition: max-height 0.2s ease;
+}
+
+.collapsible-body.collapsed {
+  display: none;
+}
+
+/* ===== 数据管理子区 ===== */
+
+.data-subsection {
+  padding: 10px 0;
+  border-bottom: 1px solid #fecaca;
+}
+
+.data-subsection:last-child {
+  border-bottom: none;
+}
+
+.data-subsection-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #b91c1c;
+  margin-bottom: 6px;
+}
+
+.data-subsection .desc {
+  margin-bottom: 8px;
+}
+
+#vectorStoreMsg {
+  color: #b45309;
+  font-size: 11px;
+  min-height: 14px;
+  display: block;
 }
 
 .toast {

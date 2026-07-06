@@ -56,13 +56,17 @@
         <label>向量库类型</label>
         <select id="vectorStoreType">
           <option value="local">内置（IndexedDB，零配置）</option>
-          <option value="chroma">ChromaDB（本地）</option>
-          <option value="milvus">Milvus（本地/云端）</option>
+          <option value="chroma">ChromaDB</option>
+          <option value="milvus">Milvus</option>
           <option value="pgvector">PostgreSQL + pgvector</option>
-          <option value="pinecone">Pinecone（云端）</option>
-          <option value="supabase">Supabase（云端）</option>
-          <option value="qdrant">Qdrant（云端）</option>
+          <option value="pinecone">Pinecone</option>
+          <option value="supabase">Supabase</option>
+          <option value="qdrant">Qdrant</option>
         </select>
+        <div class="help-link" id="vectorHelpLink" style="display:none">
+          <span class="help-icon-inline">?</span>
+          <a href="#" id="vectorHelpLinkText">查看部署说明</a>
+        </div>
       </div>
 
       <div id="remoteVectorConfig" style="display:none">
@@ -149,29 +153,142 @@
       <button class="btn btn-danger" id="rebuildIndexBtn">重建向量索引</button>
     </section>
 
+    <!-- 存储位置信息 -->
+    <section class="setting-section storage-info-section">
+      <h2>存储位置信息</h2>
+      <p class="desc">查看本地数据存储位置，便于手动检查或备份</p>
+
+      <!-- 总览（默认展开） -->
+      <div class="form-group">
+        <label>扩展 ID</label>
+        <div class="info-row">
+          <code id="storageExtensionId" class="info-code">加载中...</code>
+          <button class="btn btn-mini" id="copyExtensionIdBtn" title="复制扩展 ID">复制</button>
+          <button class="btn btn-mini" id="openExtensionsBtn" title="打开 chrome://extensions">打开扩展页</button>
+        </div>
+        <small>在 chrome://extensions 中可定位本扩展的存储</small>
+      </div>
+
+      <div class="form-group">
+        <label>估算存储占用</label>
+        <div id="storageUsage" class="info-text">加载中...</div>
+        <small>该数值包含 IndexedDB、chrome.storage 等所有扩展数据</small>
+      </div>
+
+      <!-- 数据库详情（默认折叠） -->
+      <div class="form-group">
+        <div class="collapsible-header collapsed" id="dbDetailToggle">
+          <span class="arrow">▼</span>数据库详情
+        </div>
+        <div class="collapsible-body collapsed" id="dbDetailBody">
+          <div id="dbDetailContent">加载中...</div>
+        </div>
+      </div>
+
+      <!-- 文件路径（默认折叠） -->
+      <div class="form-group">
+        <div class="collapsible-header collapsed" id="filePathToggle">
+          <span class="arrow">▼</span>磁盘文件路径
+        </div>
+        <div class="collapsible-body collapsed" id="filePathBody">
+          <p class="info-text">Chrome 扩展的 IndexedDB 文件位于：</p>
+          <pre class="info-code-block" id="storageFilePath">加载中...</pre>
+          <small>该文件夹是 LevelDB 格式，无法直接打开查看内容。可右键查看文件夹大小，或通过 DevTools 查看（见下方步骤）。</small>
+        </div>
+      </div>
+
+      <!-- DevTools 查看步骤（默认折叠） -->
+      <div class="form-group">
+        <div class="collapsible-header collapsed" id="devtoolsToggle">
+          <span class="arrow">▼</span>如何在 DevTools 中查看
+        </div>
+        <div class="collapsible-body collapsed" id="devtoolsBody">
+          <ol class="info-list">
+            <li>点击上方「打开扩展页」按钮（或访问 chrome://extensions）</li>
+            <li>找到「AI Chat Collector」扩展，点击详情中的「Service Worker」链接</li>
+            <li>在弹出的 DevTools 窗口中切换到 <code>Application</code> 标签</li>
+            <li>左侧展开 <code>IndexedDB</code>，即可看到 <code>AIChatCollector</code> 和 <code>AIChatEmbeddings</code> 两个数据库</li>
+            <li>展开数据库可查看各 objectStore 的内容；右键可刷新或清空</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <button class="btn" id="refreshStorageInfoBtn">刷新存储信息</button>
+      </div>
+    </section>
+
     <!-- 数据管理 -->
     <section class="setting-section danger-zone">
       <h2>数据管理</h2>
       <p class="desc">清理本地存储数据，操作不可撤销</p>
 
-      <div class="form-group">
-        <button class="btn btn-danger" id="clearEmbeddingsBtn">清空向量索引</button>
-        <small>删除所有 embedding 向量数据，对话记录不受影响</small>
+      <!-- 子区 1：对话相关 -->
+      <div class="data-subsection">
+        <h3 class="data-subsection-title">对话相关</h3>
+        <div class="form-group">
+          <button class="btn btn-danger" id="clearConversationsBtn">清空所有对话</button>
+          <small>删除所有对话记录及关联的向量索引（含远程向量库对应数据）</small>
+        </div>
       </div>
-      <div class="form-group">
-        <button class="btn btn-danger" id="clearConversationsBtn">清空所有对话</button>
-        <small>删除所有对话记录及关联的向量索引</small>
+
+      <!-- 子区 2：向量库数据管理 -->
+      <div class="data-subsection">
+        <h3 class="data-subsection-title">向量库数据管理</h3>
+        <p class="desc">管理当前配置的向量库（本地或远程），删除对话时会自动同步删除对应向量</p>
+
+        <div class="form-group">
+          <label>当前后端</label>
+          <div id="vectorBackendLabel" class="info-text">加载中...</div>
+        </div>
+
+        <div class="form-group">
+          <label>向量条数</label>
+          <div id="vectorCount" class="info-text">加载中...</div>
+        </div>
+
+        <!-- 远程配置详情（默认折叠，仅远程后端时显示） -->
+        <div class="form-group" id="remoteConfigGroup" style="display:none">
+          <div class="collapsible-header collapsed" id="remoteConfigToggle">
+            <span class="arrow">▼</span>远程配置
+          </div>
+          <div class="collapsible-body collapsed" id="remoteConfigBody">
+            <div id="remoteConfigContent">加载中...</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <button class="btn" id="refreshVectorStatsBtn">刷新统计</button>
+          <button class="btn btn-danger" id="clearVectorStoreBtn">清空当前向量库</button>
+        </div>
       </div>
-      <div class="form-group">
-        <button class="btn btn-danger" id="resetSettingsBtn">重置全部设置</button>
-        <small>恢复所有配置为默认值</small>
+
+      <!-- 子区 3：设置重置 -->
+      <div class="data-subsection">
+        <h3 class="data-subsection-title">设置重置</h3>
+        <div class="form-group">
+          <button class="btn btn-danger" id="resetSettingsBtn">重置全部设置</button>
+          <small>恢复所有配置为默认值（不影响已保存的对话和向量数据）</small>
+        </div>
       </div>
     </section>
 
     <!-- 状态提示 -->
     <div class="toast" id="toast"></div>
+
+    <!-- 帮助弹窗（pgvector 部署说明等） -->
+    <div class="help-overlay" id="helpOverlay">
+      <div class="help-box">
+        <div class="help-header">
+          <h3 id="helpTitle">帮助</h3>
+          <button class="help-close" id="helpClose">&times;</button>
+        </div>
+        <div class="help-body" id="helpBody"></div>
+      </div>
+    </div>
   </div>
 
+  <script src="../lib/marked.min.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>
