@@ -9,6 +9,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const toast = document.getElementById('toast');
 
   // ---- 表单元素 ----
+  const platformDeepseek = document.getElementById('platformDeepseek');
+  const platformQianwen = document.getElementById('platformQianwen');
+  const platformFudan = document.getElementById('platformFudan');
+  const platformDoubao = document.getElementById('platformDoubao');
+
   const embeddingModel = document.getElementById('embeddingModel');
   const dashscopeEmbeddingKey = document.getElementById('dashscopeEmbeddingKey');
   const includeThinking = document.getElementById('includeThinking');
@@ -36,6 +41,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let formSnapshot = '';
   function serializeForm() {
     return JSON.stringify({
+      platformDeepseek: platformDeepseek.checked,
+      platformQianwen: platformQianwen.checked,
+      platformFudan: platformFudan.checked,
+      platformDoubao: platformDoubao.checked,
       embeddingModel: embeddingModel.value,
       dashscopeEmbeddingKey: dashscopeEmbeddingKey.value,
       includeThinking: includeThinking.checked,
@@ -197,6 +206,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---- 加载设置 ----
   async function loadSettings() {
+    // 平台提取设置
+    const platformResp = await sendMessage({ type: 'GET_SETTINGS', category: 'platforms' });
+    if (platformResp) {
+      platformDeepseek.checked = platformResp.deepseek !== false;
+      platformQianwen.checked = platformResp.qianwen !== false;
+      platformFudan.checked = platformResp.fudan !== false;
+      platformDoubao.checked = platformResp.doubao !== false;
+    }
+
     // Embedding 设置
     const embResp = await sendMessage({ type: 'GET_SETTINGS', category: 'embedding' });
     if (embResp) {
@@ -242,6 +260,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---- 保存设置 ----
   async function saveSettings() {
+    // 平台提取设置
+    await sendMessage({
+      type: 'SAVE_SETTINGS',
+      category: 'platforms',
+      settings: {
+        deepseek: platformDeepseek.checked,
+        qianwen: platformQianwen.checked,
+        fudan: platformFudan.checked,
+        doubao: platformDoubao.checked
+      }
+    });
+
     // Embedding
     await sendMessage({
       type: 'SAVE_SETTINGS',

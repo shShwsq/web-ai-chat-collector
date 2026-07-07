@@ -408,6 +408,8 @@ async function handleGetSettings(category) {
         return await getVectorStoreSettings();
       case 'llm':
         return await getLLMSettings();
+      case 'platforms':
+        return await getPlatformSettings();
       default:
         return { error: '未知设置类别' };
     }
@@ -436,11 +438,29 @@ async function handleSaveSettings(category, settings) {
         await saveLLMSettings(settings);
         await LLMService.setBackend(settings.backend, settings.config || {});
         break;
+      case 'platforms':
+        await savePlatformSettings(settings);
+        break;
     }
     return { success: true };
   } catch (e) {
     return { success: false, error: e.message };
   }
+}
+
+// 平台提取设置（按网站启用/禁用对话提取）
+async function getPlatformSettings() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get('platformSettings', (result) => {
+      resolve(result.platformSettings || {});
+    });
+  });
+}
+
+async function savePlatformSettings(settings) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ platformSettings: settings }, resolve);
+  });
 }
 
 async function handleTestEmbedding(text) {

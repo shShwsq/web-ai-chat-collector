@@ -20,6 +20,32 @@
       </header>
     </div>
 
+    <!-- 对话提取设置 -->
+    <section class="setting-section">
+      <h2>对话提取</h2>
+      <p class="desc">选择在哪些网站自动采集对话记录</p>
+
+      <div class="form-group">
+        <div class="checkbox-row">
+          <input type="checkbox" id="platformDeepseek" checked />
+          <label for="platformDeepseek">DeepSeek（chat.deepseek.com）</label>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="platformQianwen" checked />
+          <label for="platformQianwen">通义千问（www.qianwen.com）</label>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="platformFudan" checked />
+          <label for="platformFudan">复旦 AI Agent（aiagent.fudan.edu.cn）</label>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="platformDoubao" checked />
+          <label for="platformDoubao">豆包（www.doubao.com）</label>
+        </div>
+        <small>关闭后，对应网站不再自动采集对话、也不显示采集悬浮球。AI 问答悬浮球仍保留，便于查询历史对话。更改需刷新已打开的网页生效。</small>
+      </div>
+    </section>
+
     <!-- Embedding 设置 -->
     <section class="setting-section">
       <h2>Embedding 服务</h2>
