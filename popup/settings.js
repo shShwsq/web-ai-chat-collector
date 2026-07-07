@@ -39,6 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---- 未保存提示：表单快照 ----
   let formSnapshot = '';
+  // 向量库保存的额外结果（清空旧后端 / 重建新后端），用于保存后的 toast 提示
+  let vectorSaveExtra = null;
   function serializeForm() {
     return JSON.stringify({
       platformDeepseek: platformDeepseek.checked,
@@ -286,17 +288,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 向量库
     const vecType = vectorStoreType.value;
-    await sendMessage({
+    const newVecSettings = {
+      backend: vecType === 'local' ? 'local' : 'remote',
+      config: vecType === 'local' ? {} : {
+        type: vecType,
+        url: vectorUrl.value,
+        apiKey: vectorApiKey.value,
+        collection: vectorCollection.value || 'ai_chat_vectors'
+      }
+    };
+
+    // 检测向量库后端是否变化（忽略单独的 apiKey 变化，因为它不改变数据位置）
+    const oldVec = await sendMessage({ type: 'GET_SETTINGS', category: 'vectorStore' });
+    const oldBackend = oldVec?.backend || 'local';
+    const oldConfig = oldVec?.config || {};
+    const backendChanged = oldBackend !== newVecSettings.backend ||
+      (oldBackend === 'remote' && newVecSettings.backend === 'remote' && (
+        oldConfig.type !== newVecSettings.config.type ||
+        oldConfig.url !== newVecSettings.config.url ||
+        oldConfig.collection !== newVecSettings.config.collection
+      ));
+
+    // 后端切换时询问是否清空旧后端、是否为新后端重建索引
+    let clearOld = false;
+    let rebuildNew = false;
+    if (backendChanged) {
+      clearOld = confirm(
+        '检测到向量库后端已切换。\n\n' +
+        '旧后端的索引数据不会自动清理，是否清空旧后端的索引？\n\n' +
+        '（确定 = 清空旧后端；取消 = 保留旧后端数据）'
+      );
+      rebuildNew = confirm(
+        '是否立即为新后端重建索引？\n\n' +
+        '（需要已配置 Embedding API Key，可能耗时较长；取消可稍后手动重建）'
+      );
+    }
+
+    vectorSaveExtra = await sendMessage({
       type: 'SAVE_SETTINGS',
       category: 'vectorStore',
       settings: {
-        backend: vecType === 'local' ? 'local' : 'remote',
-        config: vecType === 'local' ? {} : {
-          type: vecType,
-          url: vectorUrl.value,
-          apiKey: vectorApiKey.value,
-          collection: vectorCollection.value || 'ai_chat_vectors'
-        }
+        ...newVecSettings,
+        clearOld,
+        rebuildNew
       }
     });
 
@@ -322,7 +356,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 保存成功后更新快照，避免返回时误报未保存
     formSnapshot = serializeForm();
-    showToast('设置已保存');
+
+    // 根据向量库切换的额外结果拼接提示
+    let toastMsg = '设置已保存';
+    if (vectorSaveExtra) {
+      if (vectorSaveExtra.cleared) {
+        toastMsg += vectorSaveExtra.cleared.success === false
+          ? `；旧后端清空失败: ${vectorSaveExtra.cleared.error || '未知错误'}`
+          : '；旧后端已清空';
+      }
+      if (vectorSaveExtra.rebuilt) {
+        toastMsg += vectorSaveExtra.rebuilt.success
+          ? `；新后端索引已重建（${vectorSaveExtra.rebuilt.count} 条）`
+          : `；索引重建失败: ${vectorSaveExtra.rebuilt.error || '未知错误'}`;
+      }
+    }
+    showToast(toastMsg);
+    vectorSaveExtra = null;
   }
 
   // ---- 测试 Embedding ----
