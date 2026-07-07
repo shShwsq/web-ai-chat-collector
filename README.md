@@ -9,6 +9,7 @@ A browser extension that automatically captures and exports AI conversation reco
 | DeepSeek (chat.deepseek.com) | ✅ | ✅ |
 | Tongyi Qianwen (qianwen.com) | ✅ | ✅ |
 | Fudan AI Agent (aiagent.fudan.edu.cn) | ✅ | ✅ |
+| Doubao (www.doubao.com) | ✅ | ✅ |
 
 ## Mode Descriptions
 
