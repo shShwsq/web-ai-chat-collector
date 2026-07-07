@@ -21,34 +21,86 @@ body {
 
 header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  gap: 6px;
+  padding: 8px 12px;
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
+}
+
+/* 顶部固定区 */
+.sticky-top {
   position: sticky;
   top: 0;
   z-index: 10;
+  background: #fff;
 }
 
+/* 标题：固定窄宽 */
 header h1 {
+  flex: 0 0 auto;
+  margin-right: 4px;
   font-size: 15px;
   font-weight: 600;
   color: #111;
 }
 
+/* 右侧按钮组：保存设置 + 返回，整体靠右 */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* 返回按钮 */
 .back-btn {
-  padding: 4px 12px;
+  flex: 0 0 auto;
+  padding: 6px 10px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
   background: #fff;
   color: #374151;
+  white-space: nowrap;
 }
 
 .back-btn:hover {
   background: #f3f4f6;
+}
+
+/* 导航按钮：按内容自适应宽度 */
+.nav-btn {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  background: #fff;
+  color: #374151;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.nav-btn:hover {
+  background: #f3f4f6;
+}
+
+.nav-btn-primary {
+  background: #7c3aed;
+  color: #fff;
+  border-color: #7c3aed;
+}
+
+.nav-btn-primary:hover {
+  background: #6d28d9;
+}
+
+/* 当滚动到存储/数据管理区时隐藏「保存设置」 */
+.nav-btn.hidden {
+  display: none;
 }
 
 .setting-section {
@@ -56,6 +108,8 @@ header h1 {
   border-bottom: 1px solid #e5e7eb;
   background: #fff;
   margin-bottom: 8px;
+  /* 跳转时避开顶部 sticky header（单行约 36px + 缓冲） */
+  scroll-margin-top: 48px;
 }
 
 .setting-section h2 {

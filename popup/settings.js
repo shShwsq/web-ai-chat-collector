@@ -32,11 +32,38 @@ document.addEventListener('DOMContentLoaded', () => {
   const ollamaBaseUrl = document.getElementById('ollamaBaseUrl');
   const ollamaModel = document.getElementById('ollamaModel');
 
+  // ---- 未保存提示：表单快照 ----
+  let formSnapshot = '';
+  function serializeForm() {
+    return JSON.stringify({
+      embeddingModel: embeddingModel.value,
+      dashscopeEmbeddingKey: dashscopeEmbeddingKey.value,
+      includeThinking: includeThinking.checked,
+      includeSearch: includeSearch.checked,
+      vectorStoreType: vectorStoreType.value,
+      vectorUrl: vectorUrl.value,
+      vectorApiKey: vectorApiKey.value,
+      vectorCollection: vectorCollection.value,
+      llmBackend: llmBackend.value,
+      dashscopeLlmKey: dashscopeLlmKey.value,
+      dashscopeModel: dashscopeModel.value,
+      openaiBaseUrl: openaiBaseUrl.value,
+      openaiApiKey: openaiApiKey.value,
+      openaiModel: openaiModel.value,
+      ollamaBaseUrl: ollamaBaseUrl.value,
+      ollamaModel: ollamaModel.value
+    });
+  }
+  function isFormDirty() {
+    return formSnapshot !== '' && serializeForm() !== formSnapshot;
+  }
+
   // ---- 加载设置 ----
   loadSettings();
 
   // ---- 事件绑定 ----
   backBtn.addEventListener('click', () => {
+    if (isFormDirty() && !confirm('有未保存的修改，确定离开吗？')) return;
     window.location.href = 'popup.html';
   });
 
@@ -55,6 +82,38 @@ document.addEventListener('DOMContentLoaded', () => {
   testEmbeddingBtn.addEventListener('click', testEmbedding);
   testLlmBtn.addEventListener('click', testLLM);
   rebuildIndexBtn.addEventListener('click', rebuildIndex);
+
+  // ---- 顶部导航条 ----
+  const navStorageBtn = document.getElementById('navStorageBtn');
+  const navDataBtn = document.getElementById('navDataBtn');
+  const storageSection = document.querySelector('.storage-info-section');
+  const dataSection = document.querySelector('.danger-zone');
+
+  // 点击跳转到对应区域（scroll-margin-top 已配置，标题不会被 sticky 遮挡）
+  navStorageBtn.addEventListener('click', () => {
+    storageSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  navDataBtn.addEventListener('click', () => {
+    dataSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  // 滚动监听：当「存储位置」或「数据管理」标题滚动到 header 下方时，隐藏「保存设置」按钮
+  let storageVisible = false;
+  let dataVisible = false;
+  const sectionObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.target === storageSection) storageVisible = entry.isIntersecting;
+      else if (entry.target === dataSection) dataVisible = entry.isIntersecting;
+    });
+    saveBtn.classList.toggle('hidden', storageVisible || dataVisible);
+  }, {
+    // 顶部排除 sticky header（约 36px）；底部 -100% 把 root 收缩成 header 下边缘的一条线，
+    // 只有当 section 顶部真正抵达 header 下方时才触发隐藏
+    rootMargin: '-36px 0px -100% 0px',
+    threshold: 0
+  });
+  sectionObserver.observe(storageSection);
+  sectionObserver.observe(dataSection);
 
   const clearConversationsBtn = document.getElementById('clearConversationsBtn');
   const resetSettingsBtn = document.getElementById('resetSettingsBtn');
@@ -176,6 +235,9 @@ document.addEventListener('DOMContentLoaded', () => {
       openaiLlmConfig.style.display = llmResp.backend === 'openai' ? 'block' : 'none';
       ollamaLlmConfig.style.display = llmResp.backend === 'ollama' ? 'block' : 'none';
     }
+
+    // 加载完成后记录表单快照，用于未保存提示
+    formSnapshot = serializeForm();
   }
 
   // ---- 保存设置 ----
@@ -228,6 +290,8 @@ document.addEventListener('DOMContentLoaded', () => {
       settings: { backend: llmType, config: llmConfig }
     });
 
+    // 保存成功后更新快照，避免返回时误报未保存
+    formSnapshot = serializeForm();
     showToast('设置已保存');
   }
 

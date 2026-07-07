@@ -8,10 +8,17 @@
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>设置</h1>
-      <button class="back-btn" id="backBtn">返回</button>
-    </header>
+    <div class="sticky-top">
+      <header>
+        <h1>设置</h1>
+        <button class="nav-btn" id="navStorageBtn">存储位置</button>
+        <button class="nav-btn" id="navDataBtn">数据管理</button>
+        <div class="header-right">
+          <button class="nav-btn nav-btn-primary" id="saveBtn">保存设置</button>
+          <button class="back-btn" id="backBtn">返回</button>
+        </div>
+      </header>
+    </div>
 
     <!-- Embedding 设置 -->
     <section class="setting-section">
@@ -147,7 +154,6 @@
 
     <!-- 操作按钮 -->
     <section class="setting-section actions">
-      <button class="btn btn-primary" id="saveBtn">保存设置</button>
       <button class="btn" id="testEmbeddingBtn">测试 Embedding</button>
       <button class="btn" id="testLlmBtn">测试 LLM</button>
       <button class="btn btn-danger" id="rebuildIndexBtn">重建向量索引</button>
