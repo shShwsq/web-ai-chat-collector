@@ -410,6 +410,8 @@ async function handleGetSettings(category) {
         return await getEmbeddingSettings();
       case 'vectorStore':
         return await getVectorStoreSettings();
+      case 'retrieval':
+        return await getRetrievalSettings();
       case 'llm':
         return await getLLMSettings();
       case 'platforms':
@@ -432,8 +434,13 @@ async function handleSaveSettings(category, settings) {
           dashscopeKey: settings.dashscopeKey,
           model: settings.model,
           includeThinking: settings.includeThinking,
-          includeSearch: settings.includeSearch
+          includeSearch: settings.includeSearch,
+          chunkSize: settings.chunkSize,
+          chunkOverlap: settings.chunkOverlap
         });
+        break;
+      case 'retrieval':
+        await saveRetrievalSettings(settings);
         break;
       case 'vectorStore': {
         // 读取当前（旧）设置，用于判断后端是否变化
@@ -548,10 +555,17 @@ async function handleRebuildIndex() {
         // 根据设置剥离 <think>/<search_result> 块后再 embedding
         const embedContent = EmbeddingService.filterContentForEmbedding(msg.content);
         if (!embedContent) continue;
-        const vector = await EmbeddingService.embed(embedContent);
-        if (vector) {
-          const embId = `${conv.id}::msg::${msg.hash || count}`;
-          await VectorStore.addVector(embId, vector, { convId: conv.id });
+        // 按当前切片设置切成多段，逐段 embedding 入库
+        const chunks = await EmbeddingService.embedMessageChunks(embedContent);
+        const msgKey = msg.hash || count;
+        for (const c of chunks) {
+          const embId = `${conv.id}::msg::${msgKey}::chunk::${c.chunkIdx}`;
+          await VectorStore.addVector(embId, c.vector, {
+            convId: conv.id,
+            msgHash: String(msgKey),
+            chunkIdx: c.chunkIdx,
+            chunkTotal: c.total
+          });
           count++;
         }
       }
@@ -577,10 +591,17 @@ async function handleTriggerEmbedding(convId, messages) {
       // 根据设置剥离 <think>/<search_result> 块后再 embedding
       const embedContent = EmbeddingService.filterContentForEmbedding(msg.content);
       if (!embedContent) continue;
-      const vector = await EmbeddingService.embed(embedContent);
-      if (vector) {
-        const embId = `${convId}::msg::${msg.hash || Date.now()}`;
-        await VectorStore.addVector(embId, vector, { convId });
+      // 按当前切片设置切成多段，逐段 embedding 入库
+      const chunks = await EmbeddingService.embedMessageChunks(embedContent);
+      const msgKey = msg.hash || Date.now();
+      for (const c of chunks) {
+        const embId = `${convId}::msg::${msgKey}::chunk::${c.chunkIdx}`;
+        await VectorStore.addVector(embId, c.vector, {
+          convId,
+          msgHash: String(msgKey),
+          chunkIdx: c.chunkIdx,
+          chunkTotal: c.total
+        });
       }
     }
     console.log(`[BG/Embedding] 对话 ${convId} 的 ${messages.length} 条消息 embedding 完成`);

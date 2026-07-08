@@ -19,6 +19,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const dashscopeEmbeddingKey = document.getElementById('dashscopeEmbeddingKey');
   const includeThinking = document.getElementById('includeThinking');
   const includeSearch = document.getElementById('includeSearch');
+  const chunkSize = document.getElementById('chunkSize');
+  const chunkOverlap = document.getElementById('chunkOverlap');
+
+  // 召回设置
+  const retrievalMode = document.getElementById('retrievalMode');
+  const retrievalTopK = document.getElementById('retrievalTopK');
+  const retrievalThreshold = document.getElementById('retrievalThreshold');
+  const topKGroup = document.getElementById('topKGroup');
+  const thresholdGroup = document.getElementById('thresholdGroup');
+  const retrievalModeDesc = document.getElementById('retrievalModeDesc');
 
   const vectorStoreType = document.getElementById('vectorStoreType');
   const remoteVectorConfig = document.getElementById('remoteVectorConfig');
@@ -52,6 +62,11 @@ document.addEventListener('DOMContentLoaded', () => {
       dashscopeEmbeddingKey: dashscopeEmbeddingKey.value,
       includeThinking: includeThinking.checked,
       includeSearch: includeSearch.checked,
+      chunkSize: chunkSize.value,
+      chunkOverlap: chunkOverlap.value,
+      retrievalMode: retrievalMode.value,
+      retrievalTopK: retrievalTopK.value,
+      retrievalThreshold: retrievalThreshold.value,
       vectorStoreType: vectorStoreType.value,
       vectorUrl: vectorUrl.value,
       vectorApiKey: vectorApiKey.value,
@@ -88,6 +103,35 @@ document.addEventListener('DOMContentLoaded', () => {
     dashscopeLlmConfig.style.display = llmBackend.value === 'dashscope' ? 'block' : 'none';
     openaiLlmConfig.style.display = llmBackend.value === 'openai' ? 'block' : 'none';
     ollamaLlmConfig.style.display = llmBackend.value === 'ollama' ? 'block' : 'none';
+  });
+
+  // 召回模式切换：按模式显示/隐藏 Top-K 和阈值输入框，并更新说明
+  function updateRetrievalModeUI() {
+    const mode = retrievalMode.value;
+    const descs = {
+      topk: '仅按 Top-K 召回前 N 条候选，不应用相似度过滤',
+      threshold: '拉取大量候选（Top-K=100）后只保留相似度达标的，可能召回较多或较少',
+      combined: '先按 Top-K 召回候选，再过滤掉相似度低于阈值的结果'
+    };
+    retrievalModeDesc.textContent = descs[mode] || descs.combined;
+    topKGroup.style.display = (mode === 'topk' || mode === 'combined') ? 'block' : 'none';
+    thresholdGroup.style.display = (mode === 'threshold' || mode === 'combined') ? 'block' : 'none';
+  }
+  retrievalMode.addEventListener('change', updateRetrievalModeUI);
+
+  // 切片重叠必须小于切片大小：实时校验提示
+  chunkSize.addEventListener('input', () => {
+    const size = parseInt(chunkSize.value, 10);
+    const overlap = parseInt(chunkOverlap.value, 10);
+    if (!isNaN(size) && !isNaN(overlap) && overlap >= size) {
+      chunkOverlap.setCustomValidity('重叠必须小于切片大小');
+      chunkOverlap.reportValidity();
+    } else {
+      chunkOverlap.setCustomValidity('');
+    }
+  });
+  chunkOverlap.addEventListener('input', () => {
+    chunkSize.dispatchEvent(new Event('input'));
   });
 
   saveBtn.addEventListener('click', saveSettings);
@@ -226,6 +270,17 @@ document.addEventListener('DOMContentLoaded', () => {
       dashscopeEmbeddingKey.value = embResp.dashscopeKey || '';
       includeThinking.checked = embResp.includeThinking !== false;
       includeSearch.checked = embResp.includeSearch !== false;
+      chunkSize.value = embResp.chunkSize || 500;
+      chunkOverlap.value = embResp.chunkOverlap ?? 50;
+    }
+
+    // 召回设置
+    const retResp = await sendMessage({ type: 'GET_SETTINGS', category: 'retrieval' });
+    if (retResp) {
+      retrievalMode.value = retResp.mode || 'combined';
+      retrievalTopK.value = retResp.topK || 20;
+      retrievalThreshold.value = retResp.scoreThreshold ?? 0.3;
+      updateRetrievalModeUI();
     }
 
     // 向量库设置
@@ -277,6 +332,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Embedding
+    // 切片重叠必须严格小于切片大小，提交前再校验一次
+    const sizeVal = parseInt(chunkSize.value, 10);
+    const overlapVal = parseInt(chunkOverlap.value, 10);
+    if (isNaN(sizeVal) || sizeVal < 100) {
+      showToast('切片大小需为不小于 100 的整数');
+      return;
+    }
+    if (isNaN(overlapVal) || overlapVal < 0) {
+      showToast('切片重叠需为不小于 0 的整数');
+      return;
+    }
+    if (overlapVal >= sizeVal) {
+      showToast('切片重叠必须小于切片大小');
+      return;
+    }
     await sendMessage({
       type: 'SAVE_SETTINGS',
       category: 'embedding',
@@ -284,7 +354,22 @@ document.addEventListener('DOMContentLoaded', () => {
         model: embeddingModel.value,
         dashscopeKey: dashscopeEmbeddingKey.value,
         includeThinking: includeThinking.checked,
-        includeSearch: includeSearch.checked
+        includeSearch: includeSearch.checked,
+        chunkSize: sizeVal,
+        chunkOverlap: overlapVal
+      }
+    });
+
+    // 召回设置
+    const retTopK = parseInt(retrievalTopK.value, 10);
+    const retThreshold = parseFloat(retrievalThreshold.value);
+    await sendMessage({
+      type: 'SAVE_SETTINGS',
+      category: 'retrieval',
+      settings: {
+        mode: retrievalMode.value,
+        topK: (isNaN(retTopK) || retTopK < 1) ? 20 : retTopK,
+        scoreThreshold: (isNaN(retThreshold) || retThreshold < 0) ? 0 : retThreshold
       }
     });
 
