@@ -78,6 +78,50 @@
         </div>
         <small>取消勾选后，对应内容不会进入向量库（仅影响新嵌入的内容；历史向量需「重建向量索引」生效）</small>
       </div>
+
+      <div class="form-group">
+        <label>切片大小（字符数）</label>
+        <input type="number" id="chunkSize" min="100" max="8000" step="50" value="500" />
+        <small>单条消息过长时按此长度切分为多段分别 embedding。text-embedding-v4 最大输入约 2048 token，中文建议 500-1000 字符</small>
+      </div>
+
+      <div class="form-group">
+        <label>切片重叠（字符数）</label>
+        <input type="number" id="chunkOverlap" min="0" max="2000" step="10" value="50" />
+        <small>相邻切片的重叠长度，避免语义在切片边界被截断。必须小于切片大小</small>
+      </div>
+
+      <div class="form-group">
+        <small>注：修改切片参数仅影响此后新嵌入的内容。已存向量若需按新参数重新切片，请点击下方「重建向量索引」</small>
+      </div>
+    </section>
+
+    <!-- 召回（Retrieval）设置 -->
+    <section class="setting-section">
+      <h2>召回设置</h2>
+      <p class="desc">控制 AI 问答 / 整理信息 / 生成测验时如何从向量库检索相关片段</p>
+
+      <div class="form-group">
+        <label>召回模式</label>
+        <select id="retrievalMode">
+          <option value="combined" selected>Top-K + 相似度阈值（推荐）</option>
+          <option value="topk">仅 Top-K（取前 N 条）</option>
+          <option value="threshold">仅相似度阈值（取所有相似度达标的结果）</option>
+        </select>
+        <small id="retrievalModeDesc">先按 Top-K 召回候选，再过滤掉相似度低于阈值的结果</small>
+      </div>
+
+      <div class="form-group" id="topKGroup">
+        <label>Top-K（候选条数上限）</label>
+        <input type="number" id="retrievalTopK" min="1" max="100" step="1" value="20" />
+        <small>从向量库中召回相似度最高的前 N 条候选</small>
+      </div>
+
+      <div class="form-group" id="thresholdGroup">
+        <label>相似度阈值（0 - 1）</label>
+        <input type="number" id="retrievalThreshold" min="0" max="1" step="0.05" value="0.3" />
+        <small>相似度低于此值的候选会被丢弃。建议 0.2-0.5；过低会引入噪声，过高可能漏召回</small>
+      </div>
     </section>
 
     <!-- 向量库设置 -->
