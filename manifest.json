@@ -16,6 +16,10 @@
     "https://aiagent.fudan.edu.cn/*",
     "https://www.doubao.com/*"
   ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },

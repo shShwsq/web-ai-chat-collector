@@ -115,6 +115,10 @@
           <label>集合/表名</label>
           <input type="text" id="vectorCollection" placeholder="ai_chat_vectors" />
         </div>
+        <div class="form-group">
+          <button class="btn" id="testVectorConnectionBtn">测试连通性</button>
+          <small>使用当前填写的配置（未保存也可测）发起一次轻量请求，验证地址、API Key 和集合名是否正确</small>
+        </div>
       </div>
     </section>
 
@@ -143,8 +147,9 @@
           <label>模型</label>
           <select id="dashscopeModel">
             <option value="deepseek-v4-flash">Deepseek-v4-Flash</option>
-            <option value="qwen3.6-flash-2026-04-16">Qwen3.6-Flash-2026-04-16</option>
+            <option value="qwen3.6-flash">Qwen3.6-Flash</option>
             <option value="deepseek-v4-pro">Deepseek-v4-Pro</option>
+            <option value="qwen3.6-pro">Qwen3.6-Pro</option>
           </select>
         </div>
       </div>
