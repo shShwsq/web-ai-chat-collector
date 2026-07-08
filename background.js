@@ -146,6 +146,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       handleGetVectorStoreStats().then(sendResponse);
       break;
 
+    case 'TEST_VECTOR_CONNECTION':
+      handleTestVectorConnection(message.config).then(sendResponse);
+      break;
+
     case 'CLEAR_ALL_CONVERSATIONS':
       handleClearAllConversations().then(sendResponse);
       break;
@@ -613,6 +617,16 @@ async function handleGetVectorStoreStats() {
   } catch (e) {
     console.error('[BG] 获取向量库统计失败:', e);
     return { error: e.message };
+  }
+}
+
+// 测试远程向量库连通性（用表单当前值，不依赖已保存设置）
+async function handleTestVectorConnection(config) {
+  try {
+    return await VectorStore.testConnection(config);
+  } catch (e) {
+    console.error('[BG] 测试向量库连通性失败:', e);
+    return { success: false, error: e.message };
   }
 }
 

@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveBtn = document.getElementById('saveBtn');
   const testEmbeddingBtn = document.getElementById('testEmbeddingBtn');
   const testLlmBtn = document.getElementById('testLlmBtn');
+  const testVectorConnectionBtn = document.getElementById('testVectorConnectionBtn');
   const rebuildIndexBtn = document.getElementById('rebuildIndexBtn');
   const toast = document.getElementById('toast');
 
@@ -92,6 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
   saveBtn.addEventListener('click', saveSettings);
   testEmbeddingBtn.addEventListener('click', testEmbedding);
   testLlmBtn.addEventListener('click', testLLM);
+  testVectorConnectionBtn.addEventListener('click', testVectorConnection);
   rebuildIndexBtn.addEventListener('click', rebuildIndex);
 
   // ---- 顶部导航条 ----
@@ -286,53 +288,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // 向量库
-    const vecType = vectorStoreType.value;
-    const newVecSettings = {
-      backend: vecType === 'local' ? 'local' : 'remote',
-      config: vecType === 'local' ? {} : {
-        type: vecType,
-        url: vectorUrl.value,
-        apiKey: vectorApiKey.value,
-        collection: vectorCollection.value || 'ai_chat_vectors'
-      }
-    };
-
-    // 检测向量库后端是否变化（忽略单独的 apiKey 变化，因为它不改变数据位置）
-    const oldVec = await sendMessage({ type: 'GET_SETTINGS', category: 'vectorStore' });
-    const oldBackend = oldVec?.backend || 'local';
-    const oldConfig = oldVec?.config || {};
-    const backendChanged = oldBackend !== newVecSettings.backend ||
-      (oldBackend === 'remote' && newVecSettings.backend === 'remote' && (
-        oldConfig.type !== newVecSettings.config.type ||
-        oldConfig.url !== newVecSettings.config.url ||
-        oldConfig.collection !== newVecSettings.config.collection
-      ));
-
-    // 后端切换时询问是否清空旧后端、是否为新后端重建索引
-    let clearOld = false;
-    let rebuildNew = false;
-    if (backendChanged) {
-      clearOld = confirm(
-        '检测到向量库后端已切换。\n\n' +
-        '旧后端的索引数据不会自动清理，是否清空旧后端的索引？\n\n' +
-        '（确定 = 清空旧后端；取消 = 保留旧后端数据）'
-      );
-      rebuildNew = confirm(
-        '是否立即为新后端重建索引？\n\n' +
-        '（需要已配置 Embedding API Key，可能耗时较长；取消可稍后手动重建）'
-      );
-    }
-
-    vectorSaveExtra = await sendMessage({
-      type: 'SAVE_SETTINGS',
-      category: 'vectorStore',
-      settings: {
-        ...newVecSettings,
-        clearOld,
-        rebuildNew
-      }
-    });
+    // 向量库（含后端切换询问，测试连通性时复用此函数的静默模式）
+    const vecResult = await saveVectorStoreSettings({ interactive: true });
+    vectorSaveExtra = vecResult.extra;
 
     // LLM
     const llmType = llmBackend.value;
@@ -373,6 +331,76 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     showToast(toastMsg);
     vectorSaveExtra = null;
+
+    // 保存完成后，若向量库为远程且尚未持有该域权限，则申请
+    // 放在最后：权限弹窗会导致 popup 失焦关闭，但此时配置已持久化，用户重开即可继续
+    const vecType2 = vectorStoreType.value;
+    if (vecType2 !== 'local') {
+      const origin = urlToOrigin(vectorUrl.value.trim());
+      if (origin) {
+        const has = await new Promise((r) => chrome.permissions.contains({ origins: [`${origin}/*`] }, r));
+        if (!has) {
+          // 不强制：用户拒绝也无所谓，配置已保存；下次测试/保存还会再问
+          await ensureHostPermission(vectorUrl.value.trim());
+        }
+      }
+    }
+  }
+
+  // 保存向量库设置；interactive=true 会弹后端切换询问，false（测试连通性用）静默保存
+  // 返回 { extra } 供 saveSettings 拼接 toast
+  async function saveVectorStoreSettings({ interactive = true } = {}) {
+    const vecType = vectorStoreType.value;
+    const newVecSettings = {
+      backend: vecType === 'local' ? 'local' : 'remote',
+      config: vecType === 'local' ? {} : {
+        type: vecType,
+        url: vectorUrl.value.trim(),
+        apiKey: vectorApiKey.value.trim(),
+        collection: vectorCollection.value.trim() || 'ai_chat_vectors'
+      }
+    };
+
+    let clearOld = false;
+    let rebuildNew = false;
+
+    if (interactive) {
+      // 检测向量库后端是否变化（忽略单独的 apiKey 变化，因为它不改变数据位置）
+      const oldVec = await sendMessage({ type: 'GET_SETTINGS', category: 'vectorStore' });
+      const oldBackend = oldVec?.backend || 'local';
+      const oldConfig = oldVec?.config || {};
+      const backendChanged = oldBackend !== newVecSettings.backend ||
+        (oldBackend === 'remote' && newVecSettings.backend === 'remote' && (
+          oldConfig.type !== newVecSettings.config.type ||
+          oldConfig.url !== newVecSettings.config.url ||
+          oldConfig.collection !== newVecSettings.config.collection
+        ));
+
+      // 后端切换时询问是否清空旧后端、是否为新后端重建索引
+      if (backendChanged) {
+        clearOld = confirm(
+          '检测到向量库后端已切换。\n\n' +
+          '旧后端的索引数据不会自动清理，是否清空旧后端的索引？\n\n' +
+          '（确定 = 清空旧后端；取消 = 保留旧后端数据）'
+        );
+        rebuildNew = confirm(
+          '是否立即为新后端重建索引？\n\n' +
+          '（需要已配置 Embedding API Key，可能耗时较长；取消可稍后手动重建）'
+        );
+      }
+    }
+
+    const extra = await sendMessage({
+      type: 'SAVE_SETTINGS',
+      category: 'vectorStore',
+      settings: {
+        ...newVecSettings,
+        clearOld,
+        rebuildNew
+      }
+    });
+
+    return { extra };
   }
 
   // ---- 测试 Embedding ----
@@ -409,6 +437,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     testLlmBtn.disabled = false;
     testLlmBtn.textContent = '测试 LLM';
+  }
+
+  // ---- 测试向量库连通性 ----
+  async function testVectorConnection() {
+    // 1. 先静默保存向量库配置（不弹后端切换询问），便于用户调试后直接持久化
+    testVectorConnectionBtn.disabled = true;
+    testVectorConnectionBtn.textContent = '保存并测试中...';
+    try {
+      await saveVectorStoreSettings({ interactive: false });
+      // 同步更新快照，避免返回时误报未保存
+      formSnapshot = serializeForm();
+    } catch (e) {
+      showToast(`保存配置失败: ${e.message}`, true);
+      testVectorConnectionBtn.disabled = false;
+      testVectorConnectionBtn.textContent = '测试连通性';
+      return;
+    }
+
+    const config = {
+      type: vectorStoreType.value,
+      url: vectorUrl.value.trim(),
+      apiKey: vectorApiKey.value.trim(),
+      collection: vectorCollection.value.trim() || 'ai_chat_vectors'
+    };
+
+    // 2. 检查并申请 host 权限（若无权限则弹窗，popup 可能因此关闭，但配置已保存）
+    if (config.type !== 'local') {
+      const origin = urlToOrigin(config.url);
+      if (!origin) {
+        showToast('服务地址格式不正确', true);
+        testVectorConnectionBtn.disabled = false;
+        testVectorConnectionBtn.textContent = '测试连通性';
+        return;
+      }
+      const has = await new Promise((r) => chrome.permissions.contains({ origins: [`${origin}/*`] }, r));
+      if (!has) {
+        // 弹窗申请：用户允许则继续测试；拒绝则提示后返回
+        const granted = await ensureHostPermission(config.url);
+        if (!granted) {
+          showToast('未授予该域访问权限，无法测试连通性（配置已保存，可稍后再试）', true);
+          testVectorConnectionBtn.disabled = false;
+          testVectorConnectionBtn.textContent = '测试连通性';
+          return;
+        }
+      }
+    }
+
+    // 3. 发起测试请求
+    try {
+      const resp = await sendMessage({ type: 'TEST_VECTOR_CONNECTION', config });
+      if (resp && resp.success) {
+        const countText = (resp.count === null || resp.count === undefined)
+          ? ''
+          : `，向量 ${resp.count} 条`;
+        showToast(`连通性测试成功！耗时 ${resp.latency}ms${countText}`);
+      } else {
+        showToast(`连通性测试失败: ${resp?.error || '未知错误'}`, true);
+      }
+    } catch (e) {
+      showToast(`测试异常: ${e.message}`, true);
+    }
+    testVectorConnectionBtn.disabled = false;
+    testVectorConnectionBtn.textContent = '测试连通性';
   }
 
   // ---- 重建向量索引 ----
@@ -474,6 +565,33 @@ document.addEventListener('DOMContentLoaded', () => {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage(msg, (response) => {
         resolve(response);
+      });
+    });
+  }
+
+  // 从 URL 提取 origin（协议+主机+端口），如 "http://1.2.3.4:3000/rest/v1/x" → "http://1.2.3.4:3000"
+  function urlToOrigin(rawUrl) {
+    try {
+      const u = new URL(rawUrl);
+      return u.origin;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 确保扩展拥有目标域的 host 权限；已有则直接返回 true，否则弹窗申请
+  // 必须在用户手势（如 click）上下文中调用，否则 chrome.permissions.request 会被拒绝
+  async function ensureHostPermission(rawUrl) {
+    const origin = urlToOrigin(rawUrl);
+    if (!origin) return false;
+    const pattern = `${origin}/*`;
+    const already = await new Promise((resolve) => {
+      chrome.permissions.contains({ origins: [pattern] }, resolve);
+    });
+    if (already) return true;
+    return await new Promise((resolve) => {
+      chrome.permissions.request({ origins: [pattern] }, (granted) => {
+        resolve(!!granted);
       });
     });
   }
