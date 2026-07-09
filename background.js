@@ -564,7 +564,11 @@ async function handleRebuildIndex() {
             convId: conv.id,
             msgHash: String(msgKey),
             chunkIdx: c.chunkIdx,
-            chunkTotal: c.total
+            chunkTotal: c.total,
+            title: conv.title || '',
+            platform: conv.platform || '',
+            role: msg.role || '',
+            content: c.text || ''
           });
           count++;
         }
@@ -586,6 +590,11 @@ async function handleTriggerEmbedding(convId, messages) {
       return { success: false, error: '未配置 API Key' };
     }
 
+    // 取对话元信息（title/platform）一并写入向量库，使远程向量库成为自包含、可被智能体消费的 SKILL 数据
+    const conv = await getConversation(convId);
+    const title = conv?.title || '';
+    const platform = conv?.platform || '';
+
     for (const msg of messages) {
       if (!msg.content || !msg.content.trim()) continue;
       // 根据设置剥离 <think>/<search_result> 块后再 embedding
@@ -600,7 +609,11 @@ async function handleTriggerEmbedding(convId, messages) {
           convId,
           msgHash: String(msgKey),
           chunkIdx: c.chunkIdx,
-          chunkTotal: c.total
+          chunkTotal: c.total,
+          title,
+          platform,
+          role: msg.role || '',
+          content: c.text || ''
         });
       }
     }

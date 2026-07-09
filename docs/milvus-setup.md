@@ -32,7 +32,14 @@ curl -X POST http://localhost:9091/v2/vectordb/collections/create \
       "fields": [
         {"fieldName": "id", "dataType": "VarChar", "elementTypeParams": {"max_length": "256"}},
         {"fieldName": "vector", "dataType": "FloatVector", "elementTypeParams": {"dim": "1024"}},
-        {"fieldName": "convId", "dataType": "VarChar", "elementTypeParams": {"max_length": "256"}}
+        {"fieldName": "convId", "dataType": "VarChar", "elementTypeParams": {"max_length": "256"}},
+        {"fieldName": "title", "dataType": "VarChar", "elementTypeParams": {"max_length": "512"}},
+        {"fieldName": "platform", "dataType": "VarChar", "elementTypeParams": {"max_length": "64"}},
+        {"fieldName": "role", "dataType": "VarChar", "elementTypeParams": {"max_length": "32"}},
+        {"fieldName": "content", "dataType": "VarChar", "elementTypeParams": {"max_length": "4096"}},
+        {"fieldName": "msgHash", "dataType": "VarChar", "elementTypeParams": {"max_length": "256"}},
+        {"fieldName": "chunkIdx", "dataType": "Int64"},
+        {"fieldName": "chunkTotal", "dataType": "Int64"}
       ]
     },
     "indexParams": [
@@ -40,6 +47,10 @@ curl -X POST http://localhost:9091/v2/vectordb/collections/create \
     ]
   }'
 ```
+
+> **字段说明**：扩展会把每条向量的元数据展平成行字段写入。`convId` 用于按对话删除；`title/platform/role/content` 让远程向量库成为自包含数据，可被外部智能体（如 openclaw）作为知识源直接检索消费。
+>
+> **content 的 max_length**：应不小于扩展设置中的 `chunkSize`（默认 500）。上面取 4096 已留足余量；若你调大了 `chunkSize`，请同步调大此值，否则超长切片写入会失败。
 
 ### 4. 在本扩展配置中填写
 
