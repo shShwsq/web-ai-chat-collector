@@ -475,6 +475,13 @@ header h1 {
   padding: 6px 0;
 }
 
+.hint-text {
+  font-size: 11px;
+  color: #9ca3af;
+  padding: 2px 0 4px 0;
+  line-height: 1.4;
+}
+
 .info-code-block {
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 11px;

@@ -893,6 +893,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const type = resp.backend || 'local';
       backendLabelEl.textContent = VENDOR_LABELS[type] || type;
 
+      // Milvus 计数有分钟级延迟，显示提示
+      const countHintEl = document.getElementById('vectorCountHint');
+      if (countHintEl) countHintEl.style.display = (type === 'milvus') ? '' : 'none';
+
       // 向量条数
       if (resp.count === null || resp.count === undefined) {
         if (resp.error) {

@@ -16,21 +16,21 @@ wget https://github.com/milvus-io/milvus/releases/download/v2.4.0/milvus-standal
 docker-compose up -d
 ```
 
-默认 REST API 端口为 `9091`（gRPC 端口 19530，不需要在扩展里配置）。
+默认 RESTful API 端口为 `19530`（v2 路径 `/v2/vectordb/...` 走此端口）；`9091` 是 metrics/management 端口，不提供 vectordb REST 接口。
 
 ### 3. 创建 Collection + Index
 
 通过 REST API 创建 collection（需先创建 schema）：
 
 ```bash
-curl -X POST http://localhost:9091/v2/vectordb/collections/create \
+curl -X POST http://localhost:19530/v2/vectordb/collections/create \
   -H "Content-Type: application/json" \
   -d '{
     "collectionName": "ai_chat_vectors",
     "schema": {
       "autoId": false,
       "fields": [
-        {"fieldName": "id", "dataType": "VarChar", "elementTypeParams": {"max_length": "256"}},
+        {"fieldName": "id", "dataType": "VarChar", "isPrimary": true, "elementTypeParams": {"max_length": "256"}},
         {"fieldName": "vector", "dataType": "FloatVector", "elementTypeParams": {"dim": "1024"}},
         {"fieldName": "convId", "dataType": "VarChar", "elementTypeParams": {"max_length": "256"}},
         {"fieldName": "title", "dataType": "VarChar", "elementTypeParams": {"max_length": "512"}},
@@ -50,13 +50,33 @@ curl -X POST http://localhost:9091/v2/vectordb/collections/create \
 
 > **字段说明**：扩展会把每条向量的元数据展平成行字段写入。`convId` 用于按对话删除；`title/platform/role/content` 让远程向量库成为自包含数据，可被外部智能体（如 openclaw）作为知识源直接检索消费。
 >
+> **`isPrimary: true`**：Milvus v2 RESTful API 要求显式声明主键字段，否则会返回 `{"code":65535,"message":"primary key is not specified"}`。
+>
 > **content 的 max_length**：应不小于扩展设置中的 `chunkSize`（默认 500）。上面取 4096 已留足余量；若你调大了 `chunkSize`，请同步调大此值，否则超长切片写入会失败。
 
-### 4. 在本扩展配置中填写
+### 4. Load Collection
+
+创建后必须显式 load，否则后续 query/search 会报错：
+
+```bash
+curl -X POST http://localhost:19530/v2/vectordb/collections/load \
+  -H "Content-Type: application/json" \
+  -d '{"collectionName": "ai_chat_vectors"}'
+```
+
+可选：通过 describe 验证 collection 结构：
+
+```bash
+curl -X POST http://localhost:19530/v2/vectordb/collections/describe \
+  -H "Content-Type: application/json" \
+  -d '{"collectionName": "ai_chat_vectors"}'
+```
+
+### 5. 在本扩展配置中填写
 
 | 字段 | 填写内容 |
 |---|---|
-| **服务地址** | Milvus REST API 地址，如 `http://localhost:9091` |
+| **服务地址** | Milvus RESTful API 地址，如 `http://localhost:19530` |
 | **API Key** | Milvus 默认无认证，留空。Zilliz Cloud 或启用 RBAC 时填写 root:Milvus 或 token |
 | **集合/表名** | collection 名称，如 `ai_chat_vectors` |
 
@@ -75,10 +95,16 @@ Zilliz Cloud 是 Milvus 的官方托管服务：
 ## 常见问题
 
 **Q: 启动后连接失败？**
-A: 确认 REST API 端口 9091 可访问。注意 Milvus 有 gRPC（19530）和 REST（9091）两套端口，扩展只用 REST。
+A: 确认 RESTful API 端口 19530 可访问。注意 Milvus 端口分工：`19530` 是 gRPC + RESTful v2 接口（扩展使用此端口访问 `/v2/vectordb/...`），`9091` 是 metrics/management 端口（不提供 vectordb REST 接口，访问会返回 404）。
+
+**Q: 创建 collection 报错 `{"code":65535,"message":"primary key is not specified"}`？**
+A: Milvus v2 RESTful API 要求显式声明主键字段，schema 中的主键字段需加 `"isPrimary": true`。
 
 **Q: 创建 collection 报错 "dimension mismatch"？**
 A: collection 的向量维度必须与 embedding 模型输出维度一致。text-embedding-v4 为 1024 维。
+
+**Q: query/search 报错 collection 未加载？**
+A: Milvus 在创建 collection 后必须显式调用 load 接口加载到内存，否则无法查询。参见上方第 4 步。
 
 ## 参考
 
