@@ -56,7 +56,6 @@
 | ChromaDB | `metadatas` JSON | [chroma-setup.md](./chroma-setup.md) |
 | Milvus | 展平成行字段 | [milvus-setup.md](./milvus-setup.md) |
 | PostgreSQL + pgvector | `metadata JSONB` 列 | [pgvector-setup.md](./pgvector-setup.md) |
-| Pinecone | `metadata` 基础类型 | [pinecone-setup.md](./pinecone-setup.md) |
 | Supabase | `metadata JSONB` 列 | [supabase-setup.md](./supabase-setup.md) |
 | Qdrant | `payload` JSON | [qdrant-setup.md](./qdrant-setup.md) |
 
@@ -83,7 +82,7 @@ AI Chat 知识库 MCP Server
 
 环境变量：
   DASHSCOPE_API_KEY        必填，用于查询时生成 embedding
-  VECTOR_STORE_TYPE        必填，chroma | milvus | pgvector | pinecone | supabase | qdrant
+  VECTOR_STORE_TYPE        必填，chroma | milvus | pgvector | supabase | qdrant
   VECTOR_STORE_URL         必填，向量库服务地址
   VECTOR_STORE_API_KEY     视后端而定（Chroma 可空，其余通常必填）
   VECTOR_STORE_COLLECTION  必填，集合/表名
@@ -147,8 +146,6 @@ def search_vector_store(query_vec: list[float], top_k: int) -> list[dict]:
         return _search_pgvector(query_vec, top_k)
     if VSTORE_TYPE == "supabase":
         return _search_supabase(query_vec, top_k)
-    if VSTORE_TYPE == "pinecone":
-        return _search_pinecone(query_vec, top_k)
     raise ValueError(f"未知 VECTOR_STORE_TYPE: {VSTORE_TYPE}")
 
 
@@ -269,26 +266,6 @@ def _search_supabase(vec, top_k):
             "role": m.get("role", ""),
             "content": m.get("content", ""),
             "score": item.get("similarity", 0),
-        })
-    return out
-
-
-def _search_pinecone(vec, top_k):
-    url = f"{VSTORE_URL}/query"
-    headers = {"Api-Key": VSTORE_API_KEY, "Content-Type": "application/json"}
-    body = {"vector": vec, "topK": top_k, "includeMetadata": True}
-    data = _http(url, headers, body)
-    out = []
-    for item in data.get("matches", []):
-        m = item.get("metadata", {}) or {}
-        out.append({
-            "id": item.get("id"),
-            "convId": m.get("convId", ""),
-            "title": m.get("title", ""),
-            "platform": m.get("platform", ""),
-            "role": m.get("role", ""),
-            "content": m.get("content", ""),
-            "score": item.get("score", 0),
         })
     return out
 
@@ -613,4 +590,4 @@ journalctl -u mcp-server -f    # 实时看日志
 - [MCP 官方文档](https://modelcontextprotocol.io/)
 - [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
 - [DashScope Text Embedding 文档](https://help.aliyun.com/zh/dashscope/developer-reference/text-embedding-synchronous-api)
-- 各向量库部署文档：[chroma](./chroma-setup.md) / [milvus](./milvus-setup.md) / [pgvector](./pgvector-setup.md) / [pinecone](./pinecone-setup.md) / [supabase](./supabase-setup.md) / [qdrant](./qdrant-setup.md)
+- 各向量库部署文档：[chroma](./chroma-setup.md) / [milvus](./milvus-setup.md) / [pgvector](./pgvector-setup.md) / [supabase](./supabase-setup.md) / [qdrant](./qdrant-setup.md)

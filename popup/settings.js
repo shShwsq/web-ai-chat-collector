@@ -190,7 +190,6 @@ document.addEventListener('DOMContentLoaded', () => {
     chroma:    { title: 'ChromaDB 部署说明',                file: 'docs/chroma-setup.md' },
     milvus:    { title: 'Milvus 部署说明',                  file: 'docs/milvus-setup.md' },
     pgvector:  { title: 'PostgreSQL + pgvector 部署说明',   file: 'docs/pgvector-setup.md' },
-    pinecone:  { title: 'Pinecone 部署说明',                file: 'docs/pinecone-setup.md' },
     supabase:  { title: 'Supabase 部署说明',                file: 'docs/supabase-setup.md' },
     qdrant:    { title: 'Qdrant 部署说明',                  file: 'docs/qdrant-setup.md' }
   };
@@ -865,7 +864,6 @@ document.addEventListener('DOMContentLoaded', () => {
     chroma: 'ChromaDB',
     milvus: 'Milvus',
     pgvector: 'PostgreSQL + pgvector',
-    pinecone: 'Pinecone',
     supabase: 'Supabase',
     qdrant: 'Qdrant'
   };

@@ -4,7 +4,7 @@ AI Chat 知识库 MCP Server
 
 环境变量（通过 .env 或 systemd EnvironmentFile 注入）：
   DASHSCOPE_API_KEY        必填，用于查询时生成 embedding
-  VECTOR_STORE_TYPE        必填，chroma | milvus | pgvector | pinecone | supabase | qdrant
+  VECTOR_STORE_TYPE        必填，chroma | milvus | pgvector | supabase | qdrant
   VECTOR_STORE_URL         必填，向量库服务地址
   VECTOR_STORE_API_KEY     视后端而定（Chroma 可空，其余通常必填）
   VECTOR_STORE_COLLECTION  必填，集合/表名
@@ -71,8 +71,6 @@ def search_vector_store(query_vec: list[float], top_k: int) -> list[dict]:
         return _search_pgvector(query_vec, top_k)
     if VSTORE_TYPE == "supabase":
         return _search_supabase(query_vec, top_k)
-    if VSTORE_TYPE == "pinecone":
-        return _search_pinecone(query_vec, top_k)
     raise ValueError(f"未知 VECTOR_STORE_TYPE: {VSTORE_TYPE}")
 
 
@@ -193,26 +191,6 @@ def _search_supabase(vec, top_k):
             "role": m.get("role", ""),
             "content": m.get("content", ""),
             "score": item.get("similarity", 0),
-        })
-    return out
-
-
-def _search_pinecone(vec, top_k):
-    url = f"{VSTORE_URL}/query"
-    headers = {"Api-Key": VSTORE_API_KEY, "Content-Type": "application/json"}
-    body = {"vector": vec, "topK": top_k, "includeMetadata": True}
-    data = _http(url, headers, body)
-    out = []
-    for item in data.get("matches", []):
-        m = item.get("metadata", {}) or {}
-        out.append({
-            "id": item.get("id"),
-            "convId": m.get("convId", ""),
-            "title": m.get("title", ""),
-            "platform": m.get("platform", ""),
-            "role": m.get("role", ""),
-            "content": m.get("content", ""),
-            "score": item.get("score", 0),
         })
     return out
 
