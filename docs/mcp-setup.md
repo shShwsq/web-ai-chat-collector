@@ -172,8 +172,23 @@ def _search_qdrant(vec, top_k):
     return out
 
 
+def _chroma_collections_base():
+    return f"{VSTORE_URL}/api/v2/tenants/default_tenant/databases/default_database/collections"
+
+
+def _chroma_get_id(collection_name):
+    """ChromaDB v2 数据级操作（query/count/add/delete）路径要用 collection 的 UUID，先按名字查出来。"""
+    url = f"{_chroma_collections_base()}/{collection_name}"
+    data = _http(url, {}, None, "GET")
+    if not data.get("id"):
+        raise RuntimeError(f"collection [{collection_name}] 未找到 id 字段")
+    return data["id"]
+
+
 def _search_chroma(vec, top_k):
-    url = f"{VSTORE_URL}/api/v1/collections/{VSTORE_COLLECTION}/query"
+    # ChromaDB 1.0+ 用 v2 API，数据级操作路径要用 collection 的 UUID
+    uuid = _chroma_get_id(VSTORE_COLLECTION)
+    url = f"{_chroma_collections_base()}/{uuid}/query"
     headers = {"Content-Type": "application/json"}
     body = {"query_embeddings": [vec], "n_results": top_k}
     data = _http(url, headers, body)
@@ -309,7 +324,14 @@ def get_stats() -> str:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="stdio")
+    # stdio 模式：本地智能体拉起（方式 A）
+    # sse 模式：常驻服务，配 nginx 反代（方式 B）
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    if transport == "sse":
+        # host=127.0.0.1：只监听本地，公网必须经 nginx 鉴权才能访问
+        mcp.run(transport="sse", host="127.0.0.1", port=int(os.environ.get("MCP_PORT", "8765")))
+    else:
+        mcp.run(transport="stdio")
 ```
 
 > **关键点**：
@@ -319,13 +341,34 @@ if __name__ == "__main__":
 
 ## 部署方式
 
-### 方式 A：stdio（推荐，由智能体拉起）
+### 方式 A：stdio（单机自用，由智能体拉起）
 
-智能体配置里声明 command，智能体启动时自动拉起 MCP server 子进程，关停时一并退出。无需常驻，最省资源。
+智能体配置里声明 command，智能体启动时自动拉起 MCP server 子进程，关停时一并退出。无需常驻，最省资源。**适合本地开发调试**。
 
-### 方式 B：SSE / HTTP 常驻
+### 方式 B：SSE + nginx 反代（公网部署推荐）
 
-适合多个智能体共享同一个 MCP server。把 `mcp.run(transport="stdio")` 改为 `mcp.run(transport="sse", port=8765)`，然后用进程管理器（systemd / pm2 / supervisord）常驻。
+适合公开访问、多智能体共享。链路：
+
+```
+客户端 ──HTTPS──► nginx :443 ──鉴权──► localhost:8765 MCP server ──► 向量库
+```
+
+**为什么鉴权放 nginx 而不是 MCP 代码里**：
+- 单一职责：MCP server 只管业务，鉴权逻辑与业务解耦
+- 语言无关：换 Python/Node 实现都不影响鉴权配置
+- 顺手解决 HTTPS：演示页是 HTTPS 时不能调 HTTP 接口（mixed content 拦截），nginx 一次性处理证书 + 鉴权 + 转发
+- 维护成本低：调 token 策略只改 nginx 配置，不动业务代码
+
+把 `mcp.run(transport="stdio")` 改为：
+
+```python
+if __name__ == "__main__":
+    mcp.run(transport="sse", host="127.0.0.1", port=8765)
+```
+
+> `host="127.0.0.1"` 让 MCP server 只监听本地回环，公网无法直连，**必须**经 nginx 才能访问。
+
+用进程管理器常驻（推荐 systemd，见下文配置示例）。
 
 ## 环境变量配置
 
@@ -342,11 +385,159 @@ export EMBEDDING_MODEL="text-embedding-v4"
 
 > 各后端的 URL 格式与扩展配置完全一致，参考对应 setup 文档的「在本扩展配置中填写」表格。
 
+## nginx 反代 + Token 鉴权（公网部署必备）
+
+公网部署时，nginx 负责：HTTPS 证书 + Token 鉴权 + 反向代理到 MCP server。
+
+### 1. 申请 HTTPS 证书（Let's Encrypt 免费）
+
+```bash
+# Debian/Ubuntu
+apt install certbot python3-certbot-nginx
+
+# 申请证书（自动改 nginx 配置启用 HTTPS）
+certbot --nginx -d mcp.your-domain.com
+```
+
+证书 90 天到期，certbot 默认装好 systemd timer 自动续期。**不用手动管**。
+
+### 2. 生成 Token
+
+```bash
+# 生成一个 32 字节随机 token
+openssl rand -hex 32
+# 输出示例：a3f5b8e1c2d4...
+```
+
+把这个值同时记下来，下面 nginx 配置和客户端配置都要用。
+
+### 3. nginx 配置
+
+保存为 `/etc/nginx/conf.d/mcp.conf`：
+
+```nginx
+# Token 校验：把合法 token 映射为 "ok"，其余都是空字符串
+map $arg_token $token_valid {
+    default "";
+    "a3f5b8e1c2d4_这里替换成你的_token" "ok";
+}
+
+server {
+    listen 443 ssl http2;
+    server_name mcp.your-domain.com;
+
+    # Let's Encrypt 证书（certbot --nginx 会自动填好）
+    ssl_certificate     /etc/letsencrypt/live/mcp.your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mcp.your-domain.com/privkey.pem;
+
+    # MCP SSE 端点
+    location /mcp {
+        # Token 校验：URL 没带 ?token=xxx 或 token 不匹配 → 403
+        if ($token_valid = "") {
+            return 403 '{"error":"invalid or missing token"}';
+        }
+
+        # 反向代理到本地 MCP server
+        proxy_pass http://127.0.0.1:8765;
+        proxy_http_version 1.1;
+
+        # SSE 必需：禁用缓冲，让流式事件实时推给客户端
+        proxy_buffering off;
+        proxy_cache off;
+
+        # SSE 必需：保持长连接，不主动断开
+        proxy_set_header Connection "";
+        proxy_read_timeout 86400s;
+
+        # 透传客户端信息
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# HTTP → HTTPS 强制跳转
+server {
+    listen 80;
+    server_name mcp.your-domain.com;
+    return 301 https://$host$request_uri;
+}
+```
+
+> **SSE 三个关键配置**：`proxy_buffering off`（禁缓冲）、`proxy_cache off`（禁缓存）、`proxy_read_timeout 86400s`（长连接超时拉到一天）。少一个都会导致 SSE 事件积压或连接被提前断开。
+
+### 4. 重载 nginx
+
+```bash
+nginx -t          # 测试配置语法
+systemctl reload nginx
+```
+
+### 5. 验证
+
+```bash
+# 不带 token → 应返回 403
+curl -i https://mcp.your-domain.com/mcp
+
+# 带正确 token → 应返回 MCP SSE 响应（非 403）
+curl -i "https://mcp.your-domain.com/mcp?token=a3f5b8e1c2d4_你的token"
+```
+
+## 用 systemd 常驻 MCP server
+
+保存为 `/etc/systemd/system/mcp-server.service`：
+
+```ini
+[Unit]
+Description=AI Chat Knowledge MCP Server
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/mcp
+ExecStart=/usr/bin/python3 /opt/mcp/mcp_vector_server.py
+Restart=on-failure
+RestartSec=5
+
+# 环境变量（按你的向量库后端填写，这里是 pgvector 示例）
+Environment="MCP_TRANSPORT=sse"
+Environment="MCP_PORT=8765"
+Environment="DASHSCOPE_API_KEY=sk-xxxxxxxx"
+Environment="VECTOR_STORE_TYPE=pgvector"
+Environment="VECTOR_STORE_URL=http://localhost:3000"
+Environment="VECTOR_STORE_API_KEY="
+Environment="VECTOR_STORE_COLLECTION=ai_chat_vectors"
+Environment="EMBEDDING_MODEL=text-embedding-v4"
+
+# 安全加固：限制权限
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/mcp
+
+[Install]
+WantedBy=multi-user.target
+```
+
+启用：
+
+```bash
+systemctl daemon-reload
+systemctl enable --now mcp-server
+systemctl status mcp-server    # 看是否 active (running)
+journalctl -u mcp-server -f    # 实时看日志
+```
+
+> 配合 PostgREST 同机部署时，`VECTOR_STORE_URL=http://localhost:3000` 走内网回环，PostgREST 无需暴露公网端口。
+
 ## 在智能体中接入
 
-### openclaw / Claude Desktop / 任意 MCP 客户端
+### 方式 A：stdio（本地自用）
 
-在智能体的 MCP 配置文件（通常名为 `mcp_servers.json` 或 `claude_desktop_config.json`）中加入：
+在智能体的 MCP 配置文件中加入（智能体自动拉起 server 子进程）：
 
 ```json
 {
@@ -367,7 +558,25 @@ export EMBEDDING_MODEL="text-embedding-v4"
 }
 ```
 
-接入后智能体会获得两个 tool：
+### 方式 B：SSE（连公网部署的 MCP，带 token）
+
+智能体配置指向 nginx 暴露的 HTTPS 端点，token 拼在 URL 里：
+
+```json
+{
+  "mcpServers": {
+    "ai-chat-knowledge": {
+      "url": "https://mcp.your-domain.com/mcp?token=a3f5b8e1c2d4_你的token"
+    }
+  }
+}
+```
+
+> 这也是**演示页前端**调用 MCP 的方式：`fetch("https://mcp.your-domain.com/mcp?token=xxx", ...)`。
+
+### 两个 tool
+
+接入后智能体会获得：
 - `search_knowledge(query, top_k=5)` — 语义检索对话片段
 - `get_stats()` — 查看知识库元信息
 
@@ -393,6 +602,11 @@ export EMBEDDING_MODEL="text-embedding-v4"
 | pgvector / Supabase 报 404 | `match_<表名>` 函数未创建或函数名与表名不匹配。参考 [pgvector-setup.md](./pgvector-setup.md) 第 3 步 |
 | pgvector 报 401 | PostgREST 版本问题或 anon 角色未授权。须用 v12+，参考 [pgvector-setup.md](./pgvector-setup.md) 第 4 步 |
 | DashScope embed 报 401 | API Key 无效或无 embedding 接口权限 |
+| 调用返回 403 | nginx token 校验失败。检查 URL 是否带 `?token=xxx`，token 是否与 nginx `map` 块里配置的一致 |
+| SSE 事件延迟到达或卡住 | nginx 漏配 SSE 三件套：`proxy_buffering off` / `proxy_cache off` / `proxy_read_timeout 86400s`。少一个就会积压或断连 |
+| 演示页 fetch 报 mixed content | 演示页是 HTTPS 但 MCP 是 HTTP。nginx 必须配 HTTPS（Let's Encrypt），客户端用 `https://` 调用 |
+| 公网能直连 8765 端口 | MCP server 的 `host` 写成了 `0.0.0.0`。必须用 `host="127.0.0.1"`，让公网只能经 nginx 访问 |
+| 智能体连不上 SSE 端点 | 阿里云 ECS 安全组未放行 443。控制台 → ECS → 安全组 → 入方向加 TCP 443 |
 
 ## 参考
 
