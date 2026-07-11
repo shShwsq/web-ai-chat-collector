@@ -32,7 +32,7 @@ function parseRequestBody(requestBody, sessionFields = ['session_id'], queryFiel
     for (const field of queryFields) {
       if (reqBody[field]) { result.userQuery = reqBody[field]; break; }
     }
-  } catch (e) {}
+  } catch (e) { /* 非合法 JSON，返回空 result */ }
   return result;
 }
 

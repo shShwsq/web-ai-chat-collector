@@ -158,7 +158,7 @@ function parseStream(url, data, requestBody) {
     
     // 提取标题事件
     if (currentEventType === 'title') {
-      try { title = JSON.parse(jsonStr).content || ''; } catch (e) {}
+      try { title = JSON.parse(jsonStr).content || ''; } catch (e) { /* title 解析失败留空 */ }
       continue;
     }
     

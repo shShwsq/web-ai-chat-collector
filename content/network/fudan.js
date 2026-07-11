@@ -154,7 +154,7 @@ function parseStream(url, data, requestBody) {
     if (!jsonStr) continue;
     try {
       chunks.push(JSON.parse(jsonStr));
-    } catch (e) {}
+    } catch (e) { /* 跳过非 JSON 的 SSE 行 */ }
   }
 
   if (chunks.length === 0) return null;

@@ -143,8 +143,5 @@
   "web_accessible_resources": [{
     "resources": ["lib/katex.min.css"],
     "matches": ["https://chat.deepseek.com/*", "https://www.qianwen.com/*", "https://aiagent.fudan.edu.cn/*", "https://www.doubao.com/*"]
-  }, {
-    "resources": ["models.json"],
-    "matches": ["<all_urls>"]
   }]
 }

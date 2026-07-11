@@ -603,10 +603,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 平台提取设置
     const platformResp = await sendMessage({ type: 'GET_SETTINGS', category: 'platforms' });
     if (platformResp) {
-      platformDeepseek.checked = platformResp.deepseek !== false;
-      platformQianwen.checked = platformResp.qianwen !== false;
+      platformDeepseek.checked = platformResp.deepseek === true;
+      platformQianwen.checked = platformResp.qianwen === true;
       platformFudan.checked = platformResp.fudan !== false;
-      platformDoubao.checked = platformResp.doubao !== false;
+      platformDoubao.checked = platformResp.doubao === true;
     }
 
     // Embedding 设置
@@ -635,8 +635,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (embResp.baseUrl) {
         embeddingBaseUrl.value = embResp.baseUrl;
       }
-      includeThinking.checked = embResp.includeThinking !== false;
-      includeSearch.checked = embResp.includeSearch !== false;
+      includeThinking.checked = embResp.includeThinking === true;
+      includeSearch.checked = embResp.includeSearch === true;
       chunkSize.value = embResp.chunkSize || 500;
       chunkOverlap.value = embResp.chunkOverlap ?? 50;
     }

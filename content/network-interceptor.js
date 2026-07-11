@@ -52,10 +52,10 @@
             capturedRequestBody = new TextDecoder().decode(options.body);
           }
         } catch (e) {
-          // 请求体捕获失败不影响主流程
+          console.warn('[Interceptor] 请求体捕获失败:', e);
         }
       }
-    } catch (err) {}
+    } catch (e) { console.warn('[Interceptor] 拦截处理失败:', e); }
 
     const response = await originalFetch.apply(this, args);
 
@@ -74,8 +74,8 @@
           msg.requestBody = capturedRequestBody;
         }
         window.postMessage(msg, '*');
-      }).catch(() => {});
-    } catch (err) {}
+      }).catch(e => console.warn('[Interceptor] 读取响应体失败:', e));
+    } catch (e) { console.warn('[Interceptor] 拦截处理失败:', e); }
 
     return response;
   };
@@ -107,7 +107,7 @@
       if (args[0]) {
         try {
           capturedRequestBody = typeof args[0] === 'string' ? args[0] : null;
-        } catch (e) {}
+        } catch (e) { console.warn('[Interceptor] XHR 请求体捕获失败:', e); }
       }
       xhr.addEventListener('load', function() {
         try {
@@ -121,7 +121,7 @@
             msg.requestBody = capturedRequestBody;
           }
           window.postMessage(msg, '*');
-        } catch (err) {}
+        } catch (e) { console.warn('[Interceptor] 拦截处理失败:', e); }
       });
       return originalSend.call(this, ...args);
     };
@@ -136,14 +136,11 @@
 
     const { url } = event.data;
     const headers = { ...lastAuthHeaders };
-    console.log('[NetworkInterceptor/Debug] 收到主动请求: url=%s, authHeaders=%s', url?.substring(0, 100), JSON.stringify(Object.keys(headers)));
     originalFetch(url, { headers })
       .then(resp => {
-        console.log('[NetworkInterceptor/Debug] 主动请求响应: status=%s, url=%s', resp.status, url?.substring(0, 80));
         return resp.text();
       })
       .then(bodyText => {
-        console.log('[NetworkInterceptor/Debug] 主动请求完成: url=%s, bodyLength=%s', url?.substring(0, 80), bodyText?.length);
         window.postMessage({
           type: '__AI_CHAT_INTERCEPTED__',
           source: 'fetch-active',

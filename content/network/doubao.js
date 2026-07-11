@@ -108,7 +108,7 @@ function parseHistoryMessages(data, requestBody) {
       try {
         const reqBody = JSON.parse(requestBody);
         conversationId = reqBody.uplink_body?.pull_singe_chain_uplink_body?.conversation_id || '';
-      } catch (e) {}
+      } catch (e) { /* conversationId 解析失败留空 */ }
     }
 
     // 按 index_in_conv 升序排列（响应是倒序的）
@@ -438,7 +438,7 @@ function parseDoubaoStream(url, data, requestBody) {
       if (!conversationId && reqBody.conversation_id) {
         conversationId = reqBody.conversation_id;
       }
-    } catch (e) {}
+    } catch (e) { /* 请求体解析失败 */ }
   }
 
   // 如果没有从请求体获取到 conversation_id，尝试从 URL 路径提取
