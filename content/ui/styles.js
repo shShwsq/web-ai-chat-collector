@@ -98,7 +98,7 @@ const AIChatStyles = {
         min-width: 18px;
         height: 18px;
         border-radius: 9px;
-        background: #ef4444;
+        background: #10b981;
         color: #fff;
         font-size: 10px;
         font-weight: 600;
