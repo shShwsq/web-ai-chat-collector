@@ -104,15 +104,9 @@ docker restart postgrest
 
 | 字段 | 填写内容 |
 |---|---|
-| **服务地址** | PostgREST 根地址，如 `http://localhost:3000`（**不要**带 `/rest/v1` 或 `/ai_chat` 后缀） |
+| **服务地址** | PostgREST 根地址，如 `http://localhost:3000`（**不要**带 `/ai_chat` 后缀） |
 | **API Key** | PostgREST 的 JWT token（若启用了认证），未启用认证可留空 |
 | **集合/表名** | PG 表名，如 `ai_chat_vectors`（**不是数据库名**） |
-
-> **vanilla PostgREST 的 URL 路径与 Supabase 不同**：
-> - 表：`/<表名>`（不是 `/rest/v1/<表名>`）
-> - RPC：`/rpc/<函数名>`（不是 `/rest/v1/rpc/<函数名>`）
->
-> 本扩展的 pgvector 适配器已按 vanilla PostgREST 协议实现，所以服务地址只需填根地址。
 
 > **首次测试连通性或保存时**，扩展会弹窗申请对该地址的访问权限（Chrome MV3 安全要求）。
 > 点击「允许」即可。权限只针对你填写的具体域，授予后下次不再询问。
