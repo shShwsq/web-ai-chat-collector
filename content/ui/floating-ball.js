@@ -41,7 +41,7 @@ class FloatingBall {
     this.panel.id = 'ai-chat-panel';
     this.panel.innerHTML = `
       <div class="panel-header">
-        <h2>AI Chat Collector</h2>
+        <h2>ai-chat-collector</h2>
         <button class="close-btn">&times;</button>
       </div>
       <div class="panel-search">
@@ -344,7 +344,7 @@ class FloatingBall {
             if (errMsg.includes('Extension context invalidated') || errMsg.includes('message port closed')) {
               reject(new Error('CONTEXT_INVALIDATED'));
             } else {
-              console.warn('[AI Chat Collector] 消息发送失败:', errMsg);
+              console.warn('[ai-chat-collector] 消息发送失败:', errMsg);
               resolve(null);
             }
             return;

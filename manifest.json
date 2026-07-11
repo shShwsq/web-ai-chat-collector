@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "AI Chat Collector",
+  "name": "ai-chat-collector",
   "version": "2.0.0",
   "description": "采集与 AI 平台的对话记录，支持语义搜索和 AI 问答",
   "permissions": [
@@ -131,7 +131,7 @@
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "AI Chat Collector"
+    "default_title": "ai-chat-collector"
   },
   "web_accessible_resources": [{
     "resources": ["lib/katex.min.css"],
