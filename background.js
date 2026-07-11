@@ -81,15 +81,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // ===== AI 问答 =====
     case 'ORGANIZE_INFO':
-      handleOrganizeInfo(message.query, message.stream, sender.tab).then(sendResponse);
+      handleOrganizeInfo(message.query, message.stream, sender.tab, message.options).then(sendResponse);
       break;
 
     case 'GENERATE_QUIZ':
-      handleGenerateQuiz(message.query, message.stream, sender.tab).then(sendResponse);
+      handleGenerateQuiz(message.query, message.stream, sender.tab, message.options).then(sendResponse);
       break;
 
     case 'AI_ASK_QUESTION':
-      handleAIAskQuestion(message.query, message.stream, sender.tab).then(sendResponse);
+      handleAIAskQuestion(message.query, message.stream, sender.tab, message.options).then(sendResponse);
       break;
 
     // ===== Q&A 历史记录 =====
@@ -116,6 +116,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case 'SAVE_SETTINGS':
       handleSaveSettings(message.category, message.settings).then(sendResponse);
+      break;
+
+    case 'OPEN_SETTINGS':
+      chrome.tabs.create({ url: chrome.runtime.getURL('popup/settings.html') });
       break;
 
     case 'TEST_EMBEDDING':
@@ -289,13 +293,15 @@ function sanitizeFilename(name) {
 
 function _createStreamChunkSender(tab, requestId) {
   // 向 content script 推送流式 chunk
-  return (delta, fullContent) => {
+  // onChunk 签名: (delta, fullContent, phase) - phase: 'reasoning' | 'content' | undefined
+  return (delta, fullContent, phase) => {
     try {
       chrome.tabs.sendMessage(tab.id, {
         type: 'AI_STREAM_CHUNK',
         requestId,
         delta,
-        fullContent
+        fullContent,
+        phase: phase || 'content'
       });
     } catch (e) {
       console.error('[BG] 推送流式 chunk 失败:', e);
@@ -303,14 +309,14 @@ function _createStreamChunkSender(tab, requestId) {
   };
 }
 
-async function handleOrganizeInfo(query, stream, tab) {
+async function handleOrganizeInfo(query, stream, tab, options = {}) {
   try {
     if (stream && tab) {
       const requestId = `organize_${Date.now()}`;
       // 先返回 requestId，让前端开始监听
       // 异步执行流式调用
       const onChunk = _createStreamChunkSender(tab, requestId);
-      AIAssistant.organizeInfo(query, onChunk).then((content) => {
+      AIAssistant.organizeInfo(query, onChunk, options).then((content) => {
         try {
           chrome.tabs.sendMessage(tab.id, {
             type: 'AI_STREAM_DONE',
@@ -329,7 +335,7 @@ async function handleOrganizeInfo(query, stream, tab) {
       });
       return { success: true, requestId };
     }
-    const content = await AIAssistant.organizeInfo(query);
+    const content = await AIAssistant.organizeInfo(query, null, options);
     return { success: true, content };
   } catch (e) {
     console.error('[BG] 整理信息失败:', e);
@@ -337,12 +343,12 @@ async function handleOrganizeInfo(query, stream, tab) {
   }
 }
 
-async function handleGenerateQuiz(query, stream, tab) {
+async function handleGenerateQuiz(query, stream, tab, options = {}) {
   try {
     if (stream && tab) {
       const requestId = `quiz_${Date.now()}`;
       const onChunk = _createStreamChunkSender(tab, requestId);
-      AIAssistant.generateQuiz(query, onChunk).then((content) => {
+      AIAssistant.generateQuiz(query, onChunk, options).then((content) => {
         try {
           chrome.tabs.sendMessage(tab.id, {
             type: 'AI_STREAM_DONE',
@@ -361,7 +367,7 @@ async function handleGenerateQuiz(query, stream, tab) {
       });
       return { success: true, requestId };
     }
-    const content = await AIAssistant.generateQuiz(query);
+    const content = await AIAssistant.generateQuiz(query, null, options);
     return { success: true, content };
   } catch (e) {
     console.error('[BG] 生成测验失败:', e);
@@ -369,12 +375,12 @@ async function handleGenerateQuiz(query, stream, tab) {
   }
 }
 
-async function handleAIAskQuestion(query, stream, tab) {
+async function handleAIAskQuestion(query, stream, tab, options = {}) {
   try {
     if (stream && tab) {
       const requestId = `chat_${Date.now()}`;
       const onChunk = _createStreamChunkSender(tab, requestId);
-      AIAssistant.askQuestion(query, onChunk).then((content) => {
+      AIAssistant.askQuestion(query, onChunk, options).then((content) => {
         try {
           chrome.tabs.sendMessage(tab.id, {
             type: 'AI_STREAM_DONE',
@@ -393,7 +399,7 @@ async function handleAIAskQuestion(query, stream, tab) {
       });
       return { success: true, requestId };
     }
-    const content = await AIAssistant.askQuestion(query);
+    const content = await AIAssistant.askQuestion(query, null, options);
     return { success: true, content };
   } catch (e) {
     console.error('[BG] AI 问答失败:', e);
@@ -431,8 +437,11 @@ async function handleSaveSettings(category, settings) {
       case 'embedding':
         await saveEmbeddingSettings(settings);
         await EmbeddingService.setConfig({
-          dashscopeKey: settings.dashscopeKey,
+          provider: settings.provider,
+          apiKey: settings.apiKey,
+          dashscopeKey: settings.dashscopeKey, // 兼容旧字段
           model: settings.model,
+          baseUrl: settings.baseUrl,
           includeThinking: settings.includeThinking,
           includeSearch: settings.includeSearch,
           chunkSize: settings.chunkSize,
@@ -535,9 +544,12 @@ async function handleTestEmbedding(text) {
 
 async function handleTestLLM(prompt) {
   try {
-    const content = await LLMService.chat([
-      { role: 'user', content: prompt }
-    ]);
+    // 改用流式调用，统一走 chatStream（onChunk 不向前端推送，仅等待完成）
+    const content = await LLMService.chatStream(
+      [{ role: 'user', content: prompt }],
+      null,
+      {}
+    );
     return { success: true, content };
   } catch (e) {
     return { success: false, error: e.message };
@@ -685,9 +697,9 @@ async function handleResetAllSettings() {
   try {
     await chrome.storage.local.clear();
     // 重新初始化服务
-    await EmbeddingService.setConfig({ dashscopeKey: '', model: 'text-embedding-v4', includeThinking: true, includeSearch: true });
+    await EmbeddingService.setConfig({ provider: 'dashscope', apiKey: '', model: 'text-embedding-v4', baseUrl: '', includeThinking: true, includeSearch: true });
     await VectorStore.setBackend('local', {});
-    await LLMService.setBackend('dashscope', {});
+    await LLMService.setBackend('openai', { provider: 'dashscope', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', apiKey: '', model: 'qwen3.6-flash' });
     console.log('[BG] 已重置所有设置');
     return { success: true };
   } catch (e) {

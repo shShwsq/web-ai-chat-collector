@@ -139,6 +139,21 @@ const AIChatStyles = {
         font-size: 14px;
         font-weight: 600;
         margin: 0;
+        flex: 1;
+      }
+      #ai-chat-panel .panel-header .settings-btn {
+        background: none;
+        border: none;
+        color: #fff;
+        cursor: pointer;
+        padding: 2px 6px;
+        margin-right: 4px;
+        opacity: 0.8;
+        display: flex;
+        align-items: center;
+      }
+      #ai-chat-panel .panel-header .settings-btn:hover {
+        opacity: 1;
       }
       #ai-chat-panel .panel-header .close-btn {
         background: none;

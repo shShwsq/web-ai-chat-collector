@@ -15,6 +15,19 @@ body {
   background: #f8f9fa;
 }
 
+/* 在 tab 中打开时（宽度 > 500px），居中并加宽 */
+@media (min-width: 500px) {
+  body {
+    width: auto;
+    max-width: 720px;
+    min-height: 100vh;
+    max-height: none;
+    margin: 0 auto;
+    padding: 20px 0;
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.08);
+  }
+}
+
 .container {
   padding-bottom: 20px;
 }
@@ -117,6 +130,28 @@ header h1 {
   font-weight: 600;
   color: #111;
   margin-bottom: 4px;
+}
+
+.section-title-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.btn-sm {
+  padding: 4px 12px;
+  font-size: 11px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-sm:hover {
+  background: #f3f4f6;
 }
 
 .setting-section .desc {
@@ -348,6 +383,117 @@ header h1 {
 
 .form-group small a:hover {
   text-decoration: underline;
+}
+
+/* ===== 自定义模型选择下拉组件 ===== */
+.model-select {
+  position: relative;
+}
+
+/* input 占满宽度，右侧留出箭头空间 */
+.model-select input {
+  width: 100%;
+  padding: 7px 28px 7px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 12px;
+  outline: none;
+  color: #1a1a1a;
+  background: #fff;
+}
+
+.model-select input:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+}
+
+.model-select input::placeholder {
+  color: #9ca3af;
+}
+
+/* 下拉箭头 */
+.model-select-arrow {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #6b7280;
+  pointer-events: none;
+  transition: transform 0.2s;
+}
+
+.model-select.open .model-select-arrow {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+/* 下拉面板 */
+.model-select-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+}
+
+.model-select.open .model-select-dropdown {
+  display: block;
+}
+
+/* 下拉选项 */
+.model-option {
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #374151;
+  border-bottom: 1px solid #f3f4f6;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.model-option:last-child {
+  border-bottom: none;
+}
+
+.model-option:hover,
+.model-option.active {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
+.model-option .model-name {
+  font-weight: 500;
+}
+
+.model-option .model-id {
+  font-size: 10px;
+  color: #9ca3af;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.model-option:hover .model-id,
+.model-option.active .model-id {
+  color: #a78bfa;
+}
+
+/* 空状态 */
+.model-option.empty {
+  color: #9ca3af;
+  cursor: default;
+  font-style: italic;
+}
+
+.model-option.empty:hover {
+  background: #fff;
+  color: #9ca3af;
 }
 
 /* 复选框行（用于向量库内容过滤等开关） */

@@ -11,8 +11,11 @@ class AIBall {
     this.hasMoved = false;
     this.currentTab = 'organize'; // organize | quiz | chat
     this.isGenerating = false;
-    this._streamingContent = ''; // 流式累积内容
+    this._streamingContent = ''; // 流式累积内容（正式回答）
+    this._streamingReasoning = ''; // 流式累积思考过程（reasoning_content）
     this._streamRequestId = null; // 当前流式请求 ID
+    this._lastReasoning = ''; // 上一次完成后的思考内容（用于历史保存）
+    this._thinkingToggleInited = false; // 思考开关是否已根据设置初始化
 
     // 等 DOM 就绪后再创建所有元素
     const init = () => {
@@ -203,6 +206,7 @@ class AIBall {
       }
       #ai-qa-panel .qa-input-area textarea {
         width: 100%;
+        box-sizing: border-box;
         padding: 8px 12px;
         border: 1px solid #e0e0e0;
         border-radius: 8px;
@@ -259,10 +263,90 @@ class AIBall {
         background: #7c3aed;
         color: #fff;
         border: 1px solid #6d28d9;
-        margin-right: auto;
       }
       #ai-qa-panel .qa-input-area .qa-actions .btn-quiz-start:hover {
         background: #6d28d9;
+      }
+      /* 深度思考 toggle（左侧） */
+      #ai-qa-panel .qa-input-area .qa-actions .btn-thinking-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #f3f4f6;
+        color: #6b7280;
+        border: 1px solid #e0e0e0;
+        margin-right: auto;
+        font-size: 12px;
+        padding: 6px 10px;
+        user-select: none;
+      }
+      #ai-qa-panel .qa-input-area .qa-actions .btn-thinking-toggle:hover {
+        background: #e5e7eb;
+      }
+      #ai-qa-panel .qa-input-area .qa-actions .btn-thinking-toggle.active {
+        background: #fef3c7;
+        color: #92400e;
+        border-color: #fcd34d;
+      }
+      #ai-qa-panel .qa-input-area .qa-actions .btn-thinking-toggle .toggle-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #d1d5db;
+        transition: background 0.15s;
+      }
+      #ai-qa-panel .qa-input-area .qa-actions .btn-thinking-toggle.active .toggle-dot {
+        background: #f59e0b;
+      }
+
+      /* 思考过程可折叠块 */
+      #ai-qa-panel .qa-thinking-block {
+        margin: 0 0 10px 0;
+        border: 1px solid #fde68a;
+        border-radius: 6px;
+        background: #fffbeb;
+        overflow: hidden;
+      }
+      #ai-qa-panel .qa-thinking-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        cursor: pointer;
+        font-size: 12px;
+        color: #92400e;
+        user-select: none;
+      }
+      #ai-qa-panel .qa-thinking-header:hover {
+        background: #fef3c7;
+      }
+      #ai-qa-panel .qa-thinking-header .arrow {
+        transition: transform 0.15s;
+        display: inline-block;
+      }
+      #ai-qa-panel .qa-thinking-block.collapsed .qa-thinking-header .arrow {
+        transform: rotate(-90deg);
+      }
+      #ai-qa-panel .qa-thinking-header .label {
+        font-weight: 600;
+      }
+      #ai-qa-panel .qa-thinking-header .status {
+        color: #b45309;
+        margin-left: auto;
+      }
+      #ai-qa-panel .qa-thinking-body {
+        padding: 8px 12px;
+        font-size: 12px;
+        color: #78350f;
+        line-height: 1.6;
+        border-top: 1px solid #fde68a;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+      #ai-qa-panel .qa-thinking-block.collapsed .qa-thinking-body {
+        display: none;
       }
 
       /* 结果区域 */
@@ -1060,6 +1144,11 @@ class AIBall {
               <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" fill="#fff"/>
             </svg>
           </button>
+          <button class="history-btn" id="ai-qa-settings-btn" title="打开设置">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+              <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94 0 .31.04.64.09.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.21.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" fill="#fff"/>
+            </svg>
+          </button>
           <button class="close-btn">&times;</button>
         </div>
       </div>
@@ -1072,6 +1161,10 @@ class AIBall {
         <div class="qa-input-area">
           <textarea id="ai-qa-input" placeholder="输入你的问题或主题..." rows="3"></textarea>
           <div class="qa-actions">
+            <button class="btn-thinking-toggle" id="ai-qa-thinking-toggle" title="启用深度思考（先思考再回答，质量更高、耗时更长）" aria-pressed="false">
+              <span class="toggle-dot"></span>
+              <span>深度思考</span>
+            </button>
             <button class="btn-export" id="ai-qa-export" style="display:none">导出结果</button>
             <button class="btn-quiz-start" id="ai-qa-quiz-start" style="display:none">开始做题</button>
             <button class="btn-send" id="ai-qa-send">发送</button>
@@ -1124,6 +1217,11 @@ class AIBall {
     // 历史对话返回按钮
     this.panel.querySelector('#ai-qa-history-back').addEventListener('click', () => this.hideHistory());
 
+    // 设置按钮：在新标签页打开扩展设置
+    this.panel.querySelector('#ai-qa-settings-btn').addEventListener('click', () => {
+      chrome.runtime.sendMessage({ type: 'OPEN_SETTINGS' });
+    });
+
     // 历史对话搜索框（带防抖）
     let searchTimer = null;
     this.panel.querySelector('#ai-qa-history-search').addEventListener('input', () => {
@@ -1162,6 +1260,15 @@ class AIBall {
     // 开始做题
     this.panel.querySelector('#ai-qa-quiz-start').addEventListener('click', () => this._startQuizMode());
 
+    // 深度思考开关
+    const thinkingToggle = this.panel.querySelector('#ai-qa-thinking-toggle');
+    thinkingToggle.addEventListener('click', () => {
+      const active = thinkingToggle.classList.toggle('active');
+      thinkingToggle.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    // 初始化思考开关状态（从 LLM 设置读取 enableThinking）
+    this._initThinkingToggle();
+
     // 设置链接
     this.panel.querySelector('#ai-qa-settings-link').addEventListener('click', (e) => {
       e.preventDefault();
@@ -1179,14 +1286,23 @@ class AIBall {
     // 监听来自 background 的流式消息
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === 'AI_STREAM_CHUNK' && message.requestId === this._streamRequestId) {
-        this._streamingContent = message.fullContent;
-        this._renderAssistantContent(this._streamingContent);
+        // phase: 'reasoning'（思考过程） | 'content'（正式回答） | undefined（兼容旧调用）
+        if (message.phase === 'reasoning') {
+          // 累积思考内容（message.fullContent 为当前思考全文）
+          this._streamingReasoning = message.fullContent || '';
+          // 仅更新思考块，不影响正式回答占位
+          this._renderThinkingBlock(this._streamingReasoning, true);
+        } else {
+          // 正式回答
+          this._streamingContent = message.fullContent;
+          this._renderAssistantContent(this._streamingContent, this._streamingReasoning);
+        }
         // 自动滚动到底部
         const resultEl = this.panel.querySelector('#ai-qa-result');
         resultEl.scrollTop = resultEl.scrollHeight;
       } else if (message.type === 'AI_STREAM_DONE' && message.requestId === this._streamRequestId) {
         this._streamingContent = message.fullContent;
-        this._renderAssistantContent(this._streamingContent);
+        this._renderAssistantContent(this._streamingContent, this._streamingReasoning);
         this._onStreamComplete();
       } else if (message.type === 'AI_STREAM_ERROR' && message.requestId === this._streamRequestId) {
         const asstMsg = this.panel.querySelector('#ai-qa-assistant-msg .qa-msg-content');
@@ -1287,6 +1403,8 @@ class AIBall {
     this._lastResult = null;
     this._lastQuery = null;
     this._quizData = null;
+    this._streamingReasoning = '';
+    this._lastReasoning = '';
     // 隐藏重置按钮
     this.panel.querySelector('#ai-qa-reset-btn').style.display = 'none';
     // 重置状态栏
@@ -1301,6 +1419,7 @@ class AIBall {
 
     this.isGenerating = true;
     this._streamingContent = '';
+    this._streamingReasoning = '';
     this._streamRequestId = null;
     this._lastQuery = query; // 保存当前问题，用于历史记录
     input.value = ''; // 清空输入框
@@ -1343,7 +1462,10 @@ class AIBall {
         chrome.runtime.sendMessage({
           type: actionMap[this.currentTab],
           query,
-          stream: true
+          stream: true,
+          options: {
+            enableThinking: this._isThinkingEnabled()
+          }
         }, (response) => {
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
@@ -1393,6 +1515,7 @@ class AIBall {
     const sendBtn = this.panel.querySelector('#ai-qa-send');
 
     this._lastResult = this._streamingContent;
+    this._lastReasoning = this._streamingReasoning;
     exportBtn.style.display = 'inline-block';
     if (resetBtn) resetBtn.style.display = 'flex';
     statusEl.textContent = '生成完成';
@@ -1405,11 +1528,8 @@ class AIBall {
       const quizData = this._parseQuizData(this._lastResult);
       if (quizData && quizData.questions && quizData.questions.length > 0) {
         this._quizData = quizData;
-        // 重新渲染（去除 QUIZ_DATA 注释块）
-        const asstMsg = this.panel.querySelector('#ai-qa-assistant-msg .qa-msg-content');
-        if (asstMsg) {
-          asstMsg.innerHTML = this._renderMarkdown(this._lastResult);
-        }
+        // 重新渲染（去除 QUIZ_DATA 注释块，保留思考块）
+        this._renderAssistantContent(this._lastResult, this._lastReasoning);
         if (quizStartBtn) quizStartBtn.style.display = 'inline-block';
       } else {
         if (quizStartBtn) quizStartBtn.style.display = 'none';
@@ -1434,7 +1554,8 @@ class AIBall {
           data: {
             tab: this.currentTab,
             query,
-            answer: this._lastResult
+            answer: this._lastResult,
+            reasoning: this._lastReasoning || ''
           }
         }, (response) => {
           if (chrome.runtime.lastError) {
@@ -1656,11 +1777,28 @@ class AIBall {
     // AI 回答
     const asstBlock = document.createElement('div');
     asstBlock.className = 'qa-history-msg assistant';
+    const reasoningText = (record.reasoning || '').trim();
+    const reasoningHTML = reasoningText
+      ? `<div class="qa-thinking-block collapsed">
+           <div class="qa-thinking-header">
+             <span class="arrow">▼</span>
+             <span class="label">思考过程</span>
+             <span class="status">已完成</span>
+           </div>
+           <div class="qa-thinking-body">${this._escapeHtml(reasoningText)}</div>
+         </div>`
+      : '';
     asstBlock.innerHTML = `
       <div class="qa-history-msg-role">AI</div>
-      <div class="qa-history-msg-content">${this._renderResultHTML(record.answer || '')}</div>
+      <div class="qa-history-msg-content">${reasoningHTML}${this._renderResultHTML(record.answer || '')}</div>
     `;
     bodyEl.appendChild(asstBlock);
+    // 绑定思考块折叠
+    const thinkingBlock = asstBlock.querySelector('.qa-thinking-block');
+    const thinkingHeader = asstBlock.querySelector('.qa-thinking-header');
+    if (thinkingBlock && thinkingHeader) {
+      thinkingHeader.addEventListener('click', () => thinkingBlock.classList.toggle('collapsed'));
+    }
   }
 
   _escapeHtml(text) {
@@ -2160,10 +2298,97 @@ class AIBall {
     this._quizContainer = null;
   }
 
-  _renderAssistantContent(content) {
+  _renderAssistantContent(content, reasoning) {
     const asstMsg = this.panel.querySelector('#ai-qa-assistant-msg .qa-msg-content');
     if (!asstMsg) return;
-    asstMsg.innerHTML = this._renderMarkdown(content);
+    // 若有思考过程，渲染可折叠思考块（默认收起）+ 正式回答
+    const reasoningText = (reasoning || this._streamingReasoning || '').trim();
+    let html = '';
+    if (reasoningText) {
+      const isStreaming = this.isGenerating;
+      html += `
+        <div class="qa-thinking-block collapsed" id="ai-qa-thinking-block">
+          <div class="qa-thinking-header" id="ai-qa-thinking-header">
+            <span class="arrow">▼</span>
+            <span class="label">思考过程</span>
+            <span class="status">${isStreaming ? '思考中...' : '已完成'}</span>
+          </div>
+          <div class="qa-thinking-body">${this._escapeHtml(reasoningText)}</div>
+        </div>
+      `;
+    }
+    html += this._renderMarkdown(content);
+    asstMsg.innerHTML = html;
+    // 绑定折叠点击
+    const block = this.panel.querySelector('#ai-qa-thinking-block');
+    const header = this.panel.querySelector('#ai-qa-thinking-header');
+    if (block && header) {
+      header.addEventListener('click', () => block.classList.toggle('collapsed'));
+    }
+  }
+
+  // 仅更新思考块（流式思考阶段，不影响正式回答占位）
+  _renderThinkingBlock(reasoning, streaming) {
+    const asstMsg = this.panel.querySelector('#ai-qa-assistant-msg .qa-msg-content');
+    if (!asstMsg) return;
+    let block = this.panel.querySelector('#ai-qa-thinking-block');
+    if (!block) {
+      // 首次收到思考 chunk：初始化结构，保留 typing-indicator 占位
+      asstMsg.innerHTML = `
+        <div class="qa-thinking-block collapsed" id="ai-qa-thinking-block">
+          <div class="qa-thinking-header" id="ai-qa-thinking-header">
+            <span class="arrow">▼</span>
+            <span class="label">思考过程</span>
+            <span class="status">${streaming ? '思考中...' : '已完成'}</span>
+          </div>
+          <div class="qa-thinking-body">${this._escapeHtml(reasoning || '')}</div>
+        </div>
+        <div class="typing-indicator"><span></span><span></span><span></span></div>
+      `;
+      const header = this.panel.querySelector('#ai-qa-thinking-header');
+      const blockEl = this.panel.querySelector('#ai-qa-thinking-block');
+      if (header && blockEl) {
+        header.addEventListener('click', () => blockEl.classList.toggle('collapsed'));
+      }
+    } else {
+      // 更新思考内容（保持折叠状态不变）
+      const body = block.querySelector('.qa-thinking-body');
+      if (body) body.textContent = reasoning || '';
+      const status = block.querySelector('.status');
+      if (status) status.textContent = streaming ? '思考中...' : '已完成';
+    }
+  }
+
+  // 读取深度思考开关当前状态
+  _isThinkingEnabled() {
+    const toggle = this.panel.querySelector('#ai-qa-thinking-toggle');
+    if (!toggle) return undefined;
+    return toggle.classList.contains('active');
+  }
+
+  // 从 LLM 设置读取 enableThinking 初始化 toggle 状态（仅初始化一次）
+  _initThinkingToggle() {
+    if (this._thinkingToggleInited) return;
+    this._thinkingToggleInited = true;
+    const toggle = this.panel.querySelector('#ai-qa-thinking-toggle');
+    if (!toggle) return;
+    try {
+      chrome.runtime.sendMessage({ type: 'GET_SETTINGS', category: 'llm' }, (resp) => {
+        if (chrome.runtime.lastError || !resp || resp.error) return;
+        const config = resp.config || {};
+        // enableThinking 默认 true（仅显式 false 时关闭）
+        const enabled = config.enableThinking !== false;
+        if (enabled) {
+          toggle.classList.add('active');
+          toggle.setAttribute('aria-pressed', 'true');
+        } else {
+          toggle.classList.remove('active');
+          toggle.setAttribute('aria-pressed', 'false');
+        }
+      });
+    } catch (e) {
+      // 读取失败时保持默认（不开启）
+    }
   }
 
   handleExport() {

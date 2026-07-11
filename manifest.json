@@ -14,7 +14,14 @@
     "https://www.qianwen.com/*",
     "https://dashscope.aliyuncs.com/*",
     "https://aiagent.fudan.edu.cn/*",
-    "https://www.doubao.com/*"
+    "https://www.doubao.com/*",
+    "https://api.deepseek.com/*",
+    "https://open.bigmodel.cn/*",
+    "https://api.moonshot.cn/*",
+    "https://ark.cn-beijing.volces.com/*",
+    "https://api.minimaxi.com/*",
+    "https://qianfan.baidubce.com/*",
+    "https://api.jina.ai/*"
   ],
   "optional_host_permissions": [
     "http://*/*",
@@ -136,5 +143,8 @@
   "web_accessible_resources": [{
     "resources": ["lib/katex.min.css"],
     "matches": ["https://chat.deepseek.com/*", "https://www.qianwen.com/*", "https://aiagent.fudan.edu.cn/*", "https://www.doubao.com/*"]
+  }, {
+    "resources": ["models.json"],
+    "matches": ["<all_urls>"]
   }]
 }

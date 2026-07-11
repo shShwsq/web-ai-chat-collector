@@ -15,8 +15,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const platformFudan = document.getElementById('platformFudan');
   const platformDoubao = document.getElementById('platformDoubao');
 
+  const embeddingProvider = document.getElementById('embeddingProvider');
+  const embeddingKeyLabel = document.getElementById('embeddingKeyLabel');
+  const embeddingKeyHelp = document.getElementById('embeddingKeyHelp');
   const embeddingModel = document.getElementById('embeddingModel');
+  const embeddingModelSelect = document.getElementById('embeddingModelSelect');
+  const embeddingModelDropdown = document.getElementById('embeddingModelDropdown');
+  const embeddingModelHelp = document.getElementById('embeddingModelHelp');
   const dashscopeEmbeddingKey = document.getElementById('dashscopeEmbeddingKey');
+  const embeddingBaseUrl = document.getElementById('embeddingBaseUrl');
   const includeThinking = document.getElementById('includeThinking');
   const includeSearch = document.getElementById('includeSearch');
   const chunkSize = document.getElementById('chunkSize');
@@ -38,16 +45,24 @@ document.addEventListener('DOMContentLoaded', () => {
   const vectorCollection = document.getElementById('vectorCollection');
 
   const llmBackend = document.getElementById('llmBackend');
-  const dashscopeLlmConfig = document.getElementById('dashscopeLlmConfig');
   const openaiLlmConfig = document.getElementById('openaiLlmConfig');
   const ollamaLlmConfig = document.getElementById('ollamaLlmConfig');
-  const dashscopeLlmKey = document.getElementById('dashscopeLlmKey');
-  const dashscopeModel = document.getElementById('dashscopeModel');
+  const openaiPreset = document.getElementById('openaiPreset');
   const openaiBaseUrl = document.getElementById('openaiBaseUrl');
   const openaiApiKey = document.getElementById('openaiApiKey');
+  const openaiApiKeyLabel = document.getElementById('openaiApiKeyLabel');
+  const openaiApiKeyHelp = document.getElementById('openaiApiKeyHelp');
   const openaiModel = document.getElementById('openaiModel');
+  const openaiModelSelect = document.getElementById('openaiModelSelect');
+  const openaiModelDropdown = document.getElementById('openaiModelDropdown');
+  const openaiThinkingGroup = document.getElementById('openaiThinkingGroup');
+  const openaiEnableThinking = document.getElementById('openaiEnableThinking');
+  const openaiThinkingHelp = document.getElementById('openaiThinkingHelp');
   const ollamaBaseUrl = document.getElementById('ollamaBaseUrl');
   const ollamaModel = document.getElementById('ollamaModel');
+
+  // ---- 厂商清单（从 models.json 加载） ----
+  let modelsCatalog = null;
 
   // ---- 未保存提示：表单快照 ----
   let formSnapshot = '';
@@ -59,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
       platformQianwen: platformQianwen.checked,
       platformFudan: platformFudan.checked,
       platformDoubao: platformDoubao.checked,
+      embeddingProvider: embeddingProvider.value,
       embeddingModel: embeddingModel.value,
       dashscopeEmbeddingKey: dashscopeEmbeddingKey.value,
       includeThinking: includeThinking.checked,
@@ -74,11 +90,11 @@ document.addEventListener('DOMContentLoaded', () => {
       vectorApiKey: vectorApiKey.value,
       vectorCollection: vectorCollection.value,
       llmBackend: llmBackend.value,
-      dashscopeLlmKey: dashscopeLlmKey.value,
-      dashscopeModel: dashscopeModel.value,
+      openaiPreset: openaiPreset.value,
       openaiBaseUrl: openaiBaseUrl.value,
       openaiApiKey: openaiApiKey.value,
       openaiModel: openaiModel.value,
+      openaiEnableThinking: openaiEnableThinking.checked,
       ollamaBaseUrl: ollamaBaseUrl.value,
       ollamaModel: ollamaModel.value
     });
@@ -87,8 +103,126 @@ document.addEventListener('DOMContentLoaded', () => {
     return formSnapshot !== '' && serializeForm() !== formSnapshot;
   }
 
-  // ---- 加载设置 ----
-  loadSettings();
+  // ---- 加载设置（先加载厂商清单，再加载用户配置） ----
+  loadModelsCatalog().then(() => loadSettings());
+
+  // ---- 加载 models.json 厂商清单 ----
+  async function loadModelsCatalog() {
+    try {
+      const url = chrome.runtime.getURL('models.json');
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      modelsCatalog = await resp.json();
+    } catch (e) {
+      console.error('[Settings] 加载 models.json 失败:', e);
+      modelsCatalog = { llmProviders: [], embeddingProviders: [] };
+    }
+
+    // 填充 Embedding 厂商下拉（含"自定义"选项）
+    embeddingProvider.innerHTML = '<option value="">自定义（手动填写下方字段）</option>';
+    for (const p of (modelsCatalog.embeddingProviders || [])) {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      embeddingProvider.appendChild(opt);
+    }
+
+    // 填充 OpenAI 兼容厂商预设下拉（含 DashScope，已统一走 OpenAI 兼容端点）
+    openaiPreset.innerHTML = '<option value="">自定义（手动填写下方字段）</option>';
+    for (const p of (modelsCatalog.llmProviders || [])) {
+      if (p.backend !== 'openai') continue;
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      openaiPreset.appendChild(opt);
+    }
+  }
+
+  // 根据 OpenAI 预设厂商更新 BaseUrl、API Key 标签、模型列表、思考开关
+  function applyOpenaiPreset(providerId) {
+    if (!modelsCatalog) return;
+    const provider = (modelsCatalog.llmProviders || []).find(p => p.id === providerId);
+    // 重置下拉选项
+    openaiModelDropdown.innerHTML = '';
+    if (!provider) {
+      // 自定义：清空思考开关
+      openaiThinkingGroup.style.display = 'none';
+      openaiApiKeyLabel.textContent = 'API Key';
+      openaiApiKeyHelp.textContent = '';
+      return;
+    }
+    // 自动填充 baseUrl（仅当用户当前 baseUrl 为空或与其它预设匹配时覆盖）
+    if (provider.baseUrl) {
+      openaiBaseUrl.value = provider.baseUrl;
+    }
+    // 更新 API Key 标签
+    if (provider.apiKeyLabel) openaiApiKeyLabel.textContent = provider.apiKeyLabel;
+    openaiApiKeyHelp.innerHTML = provider.apiKeyUrl
+      ? `在 <a href="${provider.apiKeyUrl}" target="_blank">${provider.apiKeyUrl}</a> 获取`
+      : '';
+
+    // 填充模型下拉选项
+    for (const m of (provider.models || [])) {
+      const opt = document.createElement('div');
+      opt.className = 'model-option';
+      opt.dataset.value = m.id;
+      opt.innerHTML = `<span class="model-name">${m.name}</span><span class="model-id">${m.id}</span>`;
+      openaiModelDropdown.appendChild(opt);
+    }
+
+    // 思考开关
+    if (provider.supportsThinking) {
+      openaiThinkingGroup.style.display = '';
+      // 选预设后默认按模型默认值设置
+      // 自定义模型 ID（如豆包 Endpoint ID ep-xxx）匹配不上时，用 provider.fallbackThinking
+      const curModel = (provider.models || []).find(m => m.id === openaiModel.value);
+      const thinking = curModel?.thinking || provider.fallbackThinking || 'none';
+      if (thinking === 'only') {
+        openaiEnableThinking.checked = true;
+        openaiEnableThinking.disabled = true;
+        openaiThinkingHelp.textContent = '该模型为仅思考模式，无法关闭';
+      } else if (thinking === 'hybrid') {
+        openaiEnableThinking.disabled = false;
+        openaiEnableThinking.checked = curModel?.thinkingDefault ?? true;
+        openaiThinkingHelp.textContent = curModel
+          ? '混合思考模式，可切换开关'
+          : '自定义模型（按混合思考模式处理），可切换开关';
+      } else {
+        openaiEnableThinking.disabled = false;
+        openaiThinkingHelp.textContent = '当前模型不支持思考';
+      }
+    } else {
+      openaiThinkingGroup.style.display = 'none';
+    }
+  }
+
+  // OpenAI 区模型输入变化时，根据预设厂商更新思考开关
+  function updateOpenaiThinkingByModel() {
+    if (!modelsCatalog) return;
+    const providerId = openaiPreset.value;
+    if (!providerId) return;
+    const provider = (modelsCatalog.llmProviders || []).find(p => p.id === providerId);
+    if (!provider || !provider.supportsThinking) return;
+    // 自定义模型 ID（如豆包 Endpoint ID ep-xxx）匹配不上时，用 provider.fallbackThinking
+    const curModel = (provider.models || []).find(m => m.id === openaiModel.value);
+    const thinking = curModel?.thinking || provider.fallbackThinking || 'none';
+    if (thinking === 'only') {
+      openaiEnableThinking.checked = true;
+      openaiEnableThinking.disabled = true;
+      openaiThinkingHelp.textContent = '该模型为仅思考模式，无法关闭';
+    } else if (thinking === 'hybrid') {
+      openaiEnableThinking.disabled = false;
+      if (!openaiEnableThinking.dataset.userTouched) {
+        openaiEnableThinking.checked = curModel?.thinkingDefault ?? true;
+      }
+      openaiThinkingHelp.textContent = curModel
+        ? '混合思考模式，可切换开关'
+        : '自定义模型（按混合思考模式处理），可切换开关';
+    } else {
+      openaiEnableThinking.disabled = false;
+      openaiThinkingHelp.textContent = '当前模型不支持思考';
+    }
+  }
 
   // ---- 事件绑定 ----
   backBtn.addEventListener('click', () => {
@@ -102,9 +236,220 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   llmBackend.addEventListener('change', () => {
-    dashscopeLlmConfig.style.display = llmBackend.value === 'dashscope' ? 'block' : 'none';
     openaiLlmConfig.style.display = llmBackend.value === 'openai' ? 'block' : 'none';
     ollamaLlmConfig.style.display = llmBackend.value === 'ollama' ? 'block' : 'none';
+  });
+
+  // Embedding 厂商切换：更新 API Key 标签和模型下拉
+  embeddingProvider.addEventListener('change', () => {
+    if (!modelsCatalog) return;
+    const provider = (modelsCatalog.embeddingProviders || []).find(p => p.id === embeddingProvider.value);
+    // 自定义厂商：清空预设字段，保留用户手填
+    if (!provider) {
+      embeddingKeyLabel.textContent = 'API Key';
+      embeddingKeyHelp.innerHTML = '';
+      embeddingModelDropdown.innerHTML = '';
+      embeddingModel.value = '';
+      updateEmbeddingModelHelp();
+      return;
+    }
+    if (provider.apiKeyLabel) embeddingKeyLabel.textContent = provider.apiKeyLabel;
+    embeddingKeyHelp.innerHTML = provider.apiKeyUrl
+      ? `在 <a href="${provider.apiKeyUrl}" target="_blank">${provider.apiKeyUrl}</a> 获取`
+      : '';
+    // 自动填充 baseUrl（用户可手动修改）
+    embeddingBaseUrl.value = provider.baseUrl || '';
+    // 重填模型下拉选项
+    embeddingModelDropdown.innerHTML = '';
+    embeddingModel.value = '';
+    for (const m of (provider.models || [])) {
+      const opt = document.createElement('div');
+      opt.className = 'model-option';
+      opt.dataset.value = m.id;
+      opt.innerHTML = `<span class="model-name">${m.name}</span><span class="model-id">${m.id}</span>`;
+      embeddingModelDropdown.appendChild(opt);
+    }
+    updateEmbeddingModelHelp();
+  });
+
+  // ---- Embedding 模型自定义下拉交互 ----
+  let embDropdownItems = [];
+
+  function renderEmbeddingOptions(keyword) {
+    const provider = (modelsCatalog?.embeddingProviders || []).find(p => p.id === embeddingProvider.value);
+    embeddingModelDropdown.innerHTML = '';
+    if (!provider) return;
+    const kw = (keyword || '').toLowerCase().trim();
+    const models = (provider.models || []).filter(m =>
+      !kw || m.id.toLowerCase().includes(kw) || m.name.toLowerCase().includes(kw)
+    );
+    if (models.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'model-option empty';
+      empty.textContent = '无匹配模型，可直接输入 Endpoint ID';
+      embeddingModelDropdown.appendChild(empty);
+      embDropdownItems = [];
+      return;
+    }
+    embDropdownItems = models.map(m => {
+      const opt = document.createElement('div');
+      opt.className = 'model-option';
+      opt.dataset.value = m.id;
+      opt.innerHTML = `<span class="model-name">${m.name}</span><span class="model-id">${m.id}</span>`;
+      opt.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        embeddingModel.value = m.id;
+        closeEmbeddingDropdown();
+        updateEmbeddingModelHelp();
+      });
+      embeddingModelDropdown.appendChild(opt);
+      return opt;
+    });
+  }
+
+  function openEmbeddingDropdown() {
+    if (!embeddingProvider.value) return;
+    renderEmbeddingOptions(embeddingModel.value);
+    embeddingModelSelect.classList.add('open');
+  }
+
+  function closeEmbeddingDropdown() {
+    embeddingModelSelect.classList.remove('open');
+  }
+
+  embeddingModel.addEventListener('focus', openEmbeddingDropdown);
+  embeddingModel.addEventListener('click', openEmbeddingDropdown);
+  embeddingModel.addEventListener('input', () => {
+    if (embeddingModelSelect.classList.contains('open')) {
+      renderEmbeddingOptions(embeddingModel.value);
+    }
+    updateEmbeddingModelHelp();
+  });
+  embeddingModel.addEventListener('keydown', (e) => {
+    if (!embeddingModelSelect.classList.contains('open')) return;
+    if (e.key === 'Escape') {
+      closeEmbeddingDropdown();
+    } else if (e.key === 'Enter' && embDropdownItems.length > 0) {
+      e.preventDefault();
+      embeddingModel.value = embDropdownItems[0].dataset.value;
+      closeEmbeddingDropdown();
+      updateEmbeddingModelHelp();
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!embeddingModelSelect.contains(e.target)) {
+      closeEmbeddingDropdown();
+    }
+  });
+
+  function updateEmbeddingModelHelp() {
+    const provider = (modelsCatalog?.embeddingProviders || []).find(p => p.id === embeddingProvider.value);
+    if (!provider) {
+      embeddingModelHelp.textContent = embeddingModel.value
+        ? `自定义模型（OpenAI 兼容，标准 /embeddings 端点，期望 1024 维）`
+        : '';
+      return;
+    }
+    const modelMeta = (provider.models || []).find(m => m.id === embeddingModel.value);
+    // 自定义 Endpoint ID 时用 provider 级别 fallback
+    const dim = modelMeta?.dimension || provider.fallbackDimension || 1024;
+    const mm = modelMeta?.multimodal || provider.fallbackMultimodal || false;
+    const dp = modelMeta?.dimensionsParam || provider.fallbackDimensionsParam || false;
+    let text = `维度: ${dim}`;
+    if (mm) text += '；多模态（支持文本+图片+视频）';
+    if (dp) text += '；将通过 dimensions 参数指定为 1024';
+    if (!modelMeta) text += '；自定义模型 ID';
+    embeddingModelHelp.textContent = text;
+  }
+
+  // OpenAI 预设厂商切换：自动填充
+  openaiPreset.addEventListener('change', () => {
+    applyOpenaiPreset(openaiPreset.value);
+  });
+  openaiModel.addEventListener('input', updateOpenaiThinkingByModel);
+  openaiModel.addEventListener('change', updateOpenaiThinkingByModel);
+
+  // ---- 自定义模型下拉组件交互 ----
+  // 当前过滤后的选项列表（缓存，供键盘导航用）
+  let modelDropdownItems = [];
+
+  // 渲染下拉选项（根据关键词过滤）
+  function renderModelOptions(keyword) {
+    const providerId = openaiPreset.value;
+    const provider = (modelsCatalog?.llmProviders || []).find(p => p.id === providerId);
+    openaiModelDropdown.innerHTML = '';
+    if (!provider) return;
+    const kw = (keyword || '').toLowerCase().trim();
+    const models = (provider.models || []).filter(m =>
+      !kw || m.id.toLowerCase().includes(kw) || m.name.toLowerCase().includes(kw)
+    );
+    if (models.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'model-option empty';
+      empty.textContent = '无匹配模型，可直接输入自定义 ID';
+      openaiModelDropdown.appendChild(empty);
+      modelDropdownItems = [];
+      return;
+    }
+    modelDropdownItems = models.map(m => {
+      const opt = document.createElement('div');
+      opt.className = 'model-option';
+      opt.dataset.value = m.id;
+      opt.innerHTML = `<span class="model-name">${m.name}</span><span class="model-id">${m.id}</span>`;
+      // 点击选中
+      opt.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // 防止 input 失焦
+        openaiModel.value = m.id;
+        closeModelDropdown();
+        updateOpenaiThinkingByModel();
+      });
+      openaiModelDropdown.appendChild(opt);
+      return opt;
+    });
+  }
+
+  function openModelDropdown() {
+    if (!openaiPreset.value) return; // 未选厂商时不展开
+    renderModelOptions(openaiModel.value);
+    openaiModelSelect.classList.add('open');
+  }
+
+  function closeModelDropdown() {
+    openaiModelSelect.classList.remove('open');
+  }
+
+  // 点击 input 或箭头区域展开/关闭
+  openaiModel.addEventListener('focus', openModelDropdown);
+  openaiModel.addEventListener('click', openModelDropdown);
+
+  // 输入时实时过滤（已展开则刷新选项）
+  openaiModel.addEventListener('input', () => {
+    if (openaiModelSelect.classList.contains('open')) {
+      renderModelOptions(openaiModel.value);
+    }
+  });
+
+  // 键盘导航：Enter 选中第一个匹配项，Escape 关闭
+  openaiModel.addEventListener('keydown', (e) => {
+    if (!openaiModelSelect.classList.contains('open')) return;
+    if (e.key === 'Escape') {
+      closeModelDropdown();
+    } else if (e.key === 'Enter' && modelDropdownItems.length > 0) {
+      e.preventDefault();
+      openaiModel.value = modelDropdownItems[0].dataset.value;
+      closeModelDropdown();
+      updateOpenaiThinkingByModel();
+    }
+  });
+
+  // 点击组件外部关闭下拉
+  document.addEventListener('click', (e) => {
+    if (!openaiModelSelect.contains(e.target)) {
+      closeModelDropdown();
+    }
+  });
+  openaiEnableThinking.addEventListener('change', () => {
+    openaiEnableThinking.dataset.userTouched = '1';
   });
 
   // 召回模式切换：按模式显示/隐藏 Top-K 和阈值输入框，并更新说明
@@ -267,8 +612,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // Embedding 设置
     const embResp = await sendMessage({ type: 'GET_SETTINGS', category: 'embedding' });
     if (embResp) {
-      embeddingModel.value = embResp.model || 'text-embedding-v4';
-      dashscopeEmbeddingKey.value = embResp.dashscopeKey || '';
+      // 厂商：兼容旧数据（无 provider 字段时按 model 推断 dashscope）
+      const savedProvider = embResp.provider || 'dashscope';
+      if (embeddingProvider) {
+        embeddingProvider.value = savedProvider;
+        // 触发 change 重填模型下拉与 API Key 标签
+        embeddingProvider.dispatchEvent(new Event('change'));
+      }
+      // 设置已保存的模型（需在厂商 change 重填下拉后）
+      if (embResp.model) {
+        embeddingModel.value = embResp.model;
+      }
+      // 若厂商未匹配上（旧 model 不在当前厂商列表），回退到 dashscope
+      if (!embeddingModel.value && embResp.model) {
+        embeddingProvider.value = 'dashscope';
+        embeddingProvider.dispatchEvent(new Event('change'));
+        embeddingModel.value = embResp.model;
+      }
+      updateEmbeddingModelHelp();
+      dashscopeEmbeddingKey.value = embResp.dashscopeKey || embResp.apiKey || '';
+      // 恢复用户自定义 baseUrl（若有）
+      if (embResp.baseUrl) {
+        embeddingBaseUrl.value = embResp.baseUrl;
+      }
       includeThinking.checked = embResp.includeThinking !== false;
       includeSearch.checked = embResp.includeSearch !== false;
       chunkSize.value = embResp.chunkSize || 500;
@@ -301,18 +667,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const llmResp = await sendMessage({ type: 'GET_SETTINGS', category: 'llm' });
     if (llmResp) {
       const config = llmResp.config || {};
-      llmBackend.value = llmResp.backend || 'dashscope';
-      dashscopeLlmKey.value = config.apiKey || '';
-      dashscopeModel.value = config.model || 'deepseek-v4-flash';
-      openaiBaseUrl.value = config.baseUrl || '';
-      openaiApiKey.value = config.apiKey || '';
-      openaiModel.value = config.model || '';
+      // 兼容旧数据：dashscope 后端已合并到 openai
+      const backend = llmResp.backend === 'dashscope' ? 'openai' : (llmResp.backend || 'openai');
+      // 旧 dashscope 后端的配置需要补全 baseUrl/provider
+      const llmConfig = llmResp.backend === 'dashscope' ? {
+        provider: 'dashscope',
+        baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        apiKey: config.apiKey || '',
+        model: config.model || '',
+        enableThinking: config.enableThinking
+      } : config;
+
+      llmBackend.value = backend;
+
+      // OpenAI 兼容：根据已保存的 baseUrl 反向匹配预设厂商
+      openaiBaseUrl.value = llmConfig.baseUrl || '';
+      openaiApiKey.value = llmConfig.apiKey || '';
+      openaiModel.value = llmConfig.model || '';
+      // 优先用已保存的 provider，否则按 baseUrl 反向匹配
+      const matchedPreset = llmConfig.provider
+        ? { id: llmConfig.provider }
+        : (modelsCatalog?.llmProviders || []).find(p =>
+            p.backend === 'openai' && p.baseUrl && p.baseUrl === llmConfig.baseUrl
+          );
+      openaiPreset.value = matchedPreset?.id || '';
+      applyOpenaiPreset(openaiPreset.value);
+      // 应用预设后模型可能被覆盖，恢复用户保存的模型
+      if (llmConfig.model) openaiModel.value = llmConfig.model;
+      if (llmConfig.enableThinking !== undefined) {
+        openaiEnableThinking.checked = !!llmConfig.enableThinking;
+        openaiEnableThinking.dataset.userTouched = '1';
+      }
+      updateOpenaiThinkingByModel();
+
       ollamaBaseUrl.value = config.baseUrl || '';
       ollamaModel.value = config.model || '';
 
-      dashscopeLlmConfig.style.display = llmResp.backend === 'dashscope' ? 'block' : 'none';
-      openaiLlmConfig.style.display = llmResp.backend === 'openai' ? 'block' : 'none';
-      ollamaLlmConfig.style.display = llmResp.backend === 'ollama' ? 'block' : 'none';
+      openaiLlmConfig.style.display = backend === 'openai' ? 'block' : 'none';
+      ollamaLlmConfig.style.display = backend === 'ollama' ? 'block' : 'none';
     }
 
     // 加载完成后记录表单快照，用于未保存提示
@@ -339,22 +731,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const overlapVal = parseInt(chunkOverlap.value, 10);
     if (isNaN(sizeVal) || sizeVal < 100) {
       showToast('切片大小需为不小于 100 的整数');
-      return;
+      return false;
     }
     if (isNaN(overlapVal) || overlapVal < 0) {
       showToast('切片重叠需为不小于 0 的整数');
-      return;
+      return false;
     }
     if (overlapVal >= sizeVal) {
       showToast('切片重叠必须小于切片大小');
-      return;
+      return false;
     }
     await sendMessage({
       type: 'SAVE_SETTINGS',
       category: 'embedding',
       settings: {
+        provider: embeddingProvider.value,
         model: embeddingModel.value,
-        dashscopeKey: dashscopeEmbeddingKey.value,
+        baseUrl: embeddingBaseUrl.value.trim(),
+        apiKey: dashscopeEmbeddingKey.value,
+        dashscopeKey: dashscopeEmbeddingKey.value, // 兼容旧代码读取
         includeThinking: includeThinking.checked,
         includeSearch: includeSearch.checked,
         chunkSize: sizeVal,
@@ -385,11 +780,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const llmType = llmBackend.value;
     let llmConfig = {};
     switch (llmType) {
-      case 'dashscope':
-        llmConfig = { apiKey: dashscopeLlmKey.value, model: dashscopeModel.value };
-        break;
       case 'openai':
-        llmConfig = { baseUrl: openaiBaseUrl.value, apiKey: openaiApiKey.value, model: openaiModel.value };
+        llmConfig = {
+          provider: openaiPreset.value || '',
+          baseUrl: openaiBaseUrl.value,
+          apiKey: openaiApiKey.value,
+          model: openaiModel.value,
+          enableThinking: openaiEnableThinking.checked && !openaiEnableThinking.disabled
+        };
         break;
       case 'ollama':
         llmConfig = { baseUrl: ollamaBaseUrl.value, model: ollamaModel.value };
@@ -434,6 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     }
+    return true;
   }
 
   // 保存向量库设置；interactive=true 会弹后端切换询问，false（测试连通性用）静默保存
@@ -495,8 +894,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---- 测试 Embedding ----
   async function testEmbedding() {
     testEmbeddingBtn.disabled = true;
-    testEmbeddingBtn.textContent = '测试中...';
+    testEmbeddingBtn.textContent = '保存并测试中...';
     try {
+      // 先保存当前设置，保存失败则不进行测试
+      const ok = await saveSettings();
+      if (!ok) {
+        testEmbeddingBtn.disabled = false;
+        testEmbeddingBtn.textContent = '测试 Embedding';
+        return;
+      }
       const resp = await sendMessage({ type: 'TEST_EMBEDDING', text: '你好，这是一个测试' });
       if (resp && resp.success) {
         showToast(`Embedding 测试成功！向量维度: ${resp.dimension}，耗时: ${resp.time}ms`);
@@ -513,8 +919,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---- 测试 LLM ----
   async function testLLM() {
     testLlmBtn.disabled = true;
-    testLlmBtn.textContent = '测试中...';
+    testLlmBtn.textContent = '保存并测试中...';
     try {
+      // 先保存当前设置，保存失败则不进行测试
+      const ok = await saveSettings();
+      if (!ok) {
+        testLlmBtn.disabled = false;
+        testLlmBtn.textContent = '测试 LLM';
+        return;
+      }
       const resp = await sendMessage({ type: 'TEST_LLM', prompt: '你好，请用一句话介绍自己' });
       if (resp && resp.success) {
         showToast(`LLM 测试成功！回复: ${resp.content.substring(0, 50)}...`);
