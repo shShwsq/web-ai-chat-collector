@@ -9,7 +9,7 @@ A browser extension that captures AI platform conversations and turns them into 
 - **AI Q&A (RAG)** — a floating Q&A ball on supported pages offers three modes, all streaming: organize information, generate quiz, and ask question. Answers are grounded in your saved conversations.
 - **Multi-backend vector store** — local IndexedDB out of the box; optionally switch to a remote vector database for cross-device / agent consumption.
 - **Multi-backend LLM** — Qwen/DashScope, OpenAI-compatible APIs, or local Ollama.
-- **MCP integration** — an independent MCP Server exposes the vector store to external agents (e.g. openclaw) as a knowledge source.
+- **Skill integration** — a ready-made SKILL lets external agents (TRAE, OpenClaw, Cursor) semantically search the collected knowledge base.
 - **Export** — Markdown / JSON, single conversation or all at once.
 
 ## Supported Platforms
@@ -65,7 +65,7 @@ Extracts conversation content by parsing the page DOM structure. Serves as a fal
                                   ┌────────────┴────────────┐
                                   ▼                         ▼
                           ┌─────────────┐         ┌─────────────────┐
-                          │  LLM (RAG)  │         │  MCP Server     │
+                          │  LLM (RAG)  │         │  SKILL          │
                           │  dashscope/ │         │  (external      │
                           │  openai/    │         │   agents)       │
                           │  ollama     │         └─────────────────┘
@@ -109,9 +109,9 @@ Open the settings page from the extension popup. Key sections:
 | OpenAI-compatible API | DeepSeek / OpenAI / any compatible endpoint |
 | Ollama | Local, offline inference |
 
-### MCP Integration
+### Skill Integration
 
-An independent MCP Server (Python) exposes the remote vector store to external agents via the `search_knowledge` / `get_stats` tools. See [docs/mcp-setup.md](docs/mcp-setup.md) for the data contract, and [docs/mcp-deploy/](docs/mcp-deploy/) for deployment scripts.
+A ready-made SKILL (`docs/skills/`) lets external agents (TRAE, OpenClaw, Cursor) semantically search the collected knowledge base via a Python script. See [docs/skill-setup.md](docs/skill-setup.md) for setup and deployment.
 
 ## Usage
 
@@ -144,7 +144,7 @@ ai-plugin/
 │   ├── vector-store.js        # Vector store abstraction (6 backends)
 │   └── llm.js                 # LLM abstraction (3 backends)
 ├── popup/                     # Popup + settings page
-├── docs/                      # Setup guides + MCP deployment
+├── docs/                      # Setup guides + SKILL integration
 └── .github/workflows/         # Build & release pipeline
 ```
 

@@ -9,7 +9,7 @@
 - **AI 问答（RAG）** — 在支持的页面提供悬浮问答球，三种模式均支持流式输出：整理信息、生成测验、AI 问答。回答基于你已保存的对话历史。
 - **多后端向量库** — 默认本地 IndexedDB（零配置）；可切换到远程向量库，支持跨设备 / 智能体消费。
 - **多后端 LLM** — Qwen/DashScope、OpenAI 兼容 API、本地 Ollama。
-- **MCP 集成** — 独立的 MCP Server 将向量库暴露给外部智能体（如 openclaw）作为知识源。
+- **SKILL 集成** — 配套 SKILL 让外部智能体（TRAE、OpenClaw、Cursor）语义检索采集到的知识库。
 - **导出** — Markdown / JSON，支持单条或全部导出。
 
 ## 支持平台
@@ -65,7 +65,7 @@
                                   ┌────────────┴────────────┐
                                   ▼                         ▼
                           ┌─────────────┐         ┌─────────────────┐
-                          │  LLM (RAG)  │         │  MCP Server     │
+                          │  LLM (RAG)  │         │  SKILL          │
                           │  dashscope/ │         │  (外部智能体)    │
                           │  openai/    │         │                 │
                           │  ollama     │         └─────────────────┘
@@ -109,9 +109,9 @@
 | OpenAI 兼容 API | DeepSeek / OpenAI / 任意兼容接口 |
 | Ollama | 本地离线推理 |
 
-### MCP 集成
+### SKILL 集成
 
-独立的 MCP Server（Python）通过 `search_knowledge` / `get_stats` 两个工具将远程向量库暴露给外部智能体。数据契约见 [docs/mcp-setup.md](docs/mcp-setup.md)，部署脚本见 [docs/mcp-deploy/](docs/mcp-deploy/)。
+配套 SKILL（`docs/skills/`）让外部智能体（TRAE、OpenClaw、Cursor）通过 Python 脚本语义检索采集到的知识库。部署与使用见 [docs/skill-setup.md](docs/skill-setup.md)。
 
 ## 使用
 
@@ -144,7 +144,7 @@ ai-plugin/
 │   ├── vector-store.js        # 向量库抽象层（6 种后端）
 │   └── llm.js                 # LLM 抽象层（3 种后端）
 ├── popup/                     # 弹窗 + 设置页
-├── docs/                      # 部署指南 + MCP 部署
+├── docs/                      # 部署指南 + SKILL 集成
 └── .github/workflows/         # 构建与发布流水线
 ```
 

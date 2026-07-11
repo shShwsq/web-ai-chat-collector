@@ -2,7 +2,7 @@
 
 ChromaDB 是一个开源的本地向量数据库，Chrome 扩展通过 HTTP API 访问。
 
-> **版本要求**：ChromaDB **1.0+**。1.0 起 v1 API 已废弃（返回 `410 Gone`），扩展和 MCP Server 均使用 v2 API。`chromadb/chroma` latest 标签即满足要求。
+> **版本要求**：ChromaDB **1.0+**。1.0 起 v1 API 已废弃（返回 `410 Gone`），扩展使用 v2 API。`chromadb/chroma` latest 标签即满足要求。
 
 ## 部署步骤
 
@@ -69,7 +69,7 @@ docker run -d -p 8000:8000 \
 A: 检查 ChromaDB 是否启动成功（`docker logs chromadb`），端口是否开放。
 
 **Q: 返回 `410 Gone` 或 "The v1 API is deprecated"？**
-A: ChromaDB 1.0+ 废弃了 v1 API。确认使用的是 `chromadb/chroma` latest 镜像（1.0+），扩展和 MCP Server 已适配 v2 API。若用的是旧版扩展代码，请拉取最新版。
+A: ChromaDB 1.0+ 废弃了 v1 API。确认使用的是 `chromadb/chroma` latest 镜像（1.0+），扩展已适配 v2 API。若用的是旧版扩展代码，请拉取最新版。
 
 **Q: 启用了认证但扩展连接失败？**
 A: ChromaDB 的 token 认证使用 `Authorization: Bearer <token>` 头，与扩展代码兼容。请确认 API Key 字段填写正确。
