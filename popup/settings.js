@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const retrievalMode = document.getElementById('retrievalMode');
   const retrievalTopK = document.getElementById('retrievalTopK');
   const retrievalThreshold = document.getElementById('retrievalThreshold');
+  const retrievalMaxContextChars = document.getElementById('retrievalMaxContextChars');
   const topKGroup = document.getElementById('topKGroup');
   const thresholdGroup = document.getElementById('thresholdGroup');
   const retrievalModeDesc = document.getElementById('retrievalModeDesc');
@@ -67,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
       retrievalMode: retrievalMode.value,
       retrievalTopK: retrievalTopK.value,
       retrievalThreshold: retrievalThreshold.value,
+      retrievalMaxContextChars: retrievalMaxContextChars.value,
       vectorStoreType: vectorStoreType.value,
       vectorUrl: vectorUrl.value,
       vectorApiKey: vectorApiKey.value,
@@ -279,6 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
       retrievalMode.value = retResp.mode || 'combined';
       retrievalTopK.value = retResp.topK || 20;
       retrievalThreshold.value = retResp.scoreThreshold ?? 0.3;
+      retrievalMaxContextChars.value = retResp.maxContextChars || 8000;
       updateRetrievalModeUI();
     }
 
@@ -362,13 +365,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // 召回设置
     const retTopK = parseInt(retrievalTopK.value, 10);
     const retThreshold = parseFloat(retrievalThreshold.value);
+    const retMaxCtx = parseInt(retrievalMaxContextChars.value, 10);
     await sendMessage({
       type: 'SAVE_SETTINGS',
       category: 'retrieval',
       settings: {
         mode: retrievalMode.value,
         topK: (isNaN(retTopK) || retTopK < 1) ? 20 : retTopK,
-        scoreThreshold: (isNaN(retThreshold) || retThreshold < 0) ? 0 : retThreshold
+        scoreThreshold: (isNaN(retThreshold) || retThreshold < 0) ? 0 : retThreshold,
+        maxContextChars: (isNaN(retMaxCtx) || retMaxCtx < 500) ? 8000 : retMaxCtx
       }
     });
 
