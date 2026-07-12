@@ -5,10 +5,10 @@
 ## 功能特性
 
 - **多平台对话采集** — 完整提取用户提问、AI 回答、深度思考过程和联网搜索引用。默认推荐 DOM 模式（兼容性更好、不受 API 协议限制），网络拦截模式作为可选增强。
-- **语义搜索** — 对话被切片并嵌入（DashScope `text-embedding-v4` / 多模态），支持按语义检索而非仅靠关键词。
+- **语义搜索** — 对话被切片并嵌入（DashScope / 智谱 / 百度千帆 / 火山豆包 / Jina 多厂商可选），支持按语义检索而非仅靠关键词。
 - **AI 问答（RAG）** — 在支持的页面提供悬浮问答球，三种模式均支持流式输出：整理信息、生成测验、AI 问答。回答基于你已保存的对话历史。
 - **多后端向量库** — 默认本地 IndexedDB（零配置）；可切换到远程向量库，支持跨设备 / 智能体消费。
-- **多后端 LLM** — Qwen/DashScope、OpenAI 兼容 API、本地 Ollama。
+- **多厂商 LLM** — 6 家预设厂商（DashScope / DeepSeek / 智谱 / Kimi / 豆包 / MiniMax）均走 OpenAI 兼容协议，支持深度思考模式切换；亦可自定义任意 OpenAI 兼容端点。
 - **SKILL 集成** — 配套 SKILL 让外部智能体（TRAE、OpenClaw、Cursor）语义检索采集到的知识库。
 - **导出** — Markdown / JSON，支持单条或全部导出。
 
@@ -44,6 +44,14 @@
 - Kimi 无法使用（WebSocket + protobuf 传输）
 - 仅在需要 DOM 尚未覆盖的原始流式数据时启用
 
+## 合规与隐私
+
+- **仅采集用户本人数据** — 扩展只采集当前已登录用户在各支持平台上的对话，不访问、爬取或存储任何他人数据。
+- **本地优先存储** — 默认情况下，采集的对话仅存储在浏览器本地 IndexedDB，不会上传到任何第三方服务器。
+- **可选远程同步** — 高级功能允许用户将自身对话数据推送至自建的远程向量库（ChromaDB / Milvus / pgvector / Supabase / Qdrant），以支持跨设备访问和 SKILL 语义检索（供 TRAE、OpenClaw、Cursor 等外部智能体使用）。此操作需用户显式发起，并使用用户自有凭证与服务。
+- **模式推荐** — 默认推荐 DOM 模式，仅解析用户已浏览渲染的页面内容。网络拦截模式作为可选备选方案，用于获取原始流式数据；其辅助请求机制（复用用户自身的会话凭证，请求用户有权访问的对话历史）是提升采集完整性的手段，而非爬取数据的机制。
+- **无用户行为模拟** — 扩展不会模拟登录、点击、滚动或任何与平台 UI 的用户交互。
+
 ## 架构
 
 ```
@@ -52,27 +60,27 @@
 │                                                                  │
 │  Content Scripts           Service Worker (background.js)        │
 │  ├─ network-interceptor    ├─ db.js        (对话存储)            │
-│  ├─ 平台适配器             ├─ embedding.js (DashScope 嵌入)      │
+│  ├─ 平台适配器             ├─ embedding.js (5 家嵌入厂商)         │
 │  ├─ floating-ball          ├─ vector-store.js (6 种后端)         │
-│  └─ ai-ball (问答 UI)      └─ llm.js       (3 种后端)            │
+│  └─ ai-ball (问答 UI)      └─ llm.js       (6 家 LLM 厂商)       │
 │                                                                  │
 │  Popup / 设置页                                                  │
 └──────────────┬───────────────────────────────┬───────────────────┘
                │                               │
                ▼                               ▼
         ┌─────────────┐               ┌─────────────────┐
-        │  DashScope  │               │   向量库        │
-        │  Embedding  │               │  local | remote │
-        └─────────────┘               └────────┬────────┘
-                                               │
+        │  Embedding  │               │   向量库        │
+        │  DashScope/ │               │  local | remote │
+        │  智谱/百度/ │               └────────┬────────┘
+        │  豆包/Jina  │                        │
+        └─────────────┘                        │
                                   ┌────────────┴────────────┐
                                   ▼                         ▼
                           ┌─────────────┐         ┌─────────────────┐
                           │  LLM (RAG)  │         │  SKILL          │
-                          │  dashscope/ │         │  (外部智能体)    │
-                          │  openai/    │         │                 │
-                          │  ollama     │         └─────────────────┘
-                          └─────────────┘
+                          │  6 家预设   │         │  (外部智能体)    │
+                          │  + 自定义   │         │                 │
+                          └─────────────┘         └─────────────────┘
 ```
 
 ## 安装
@@ -86,7 +94,7 @@
 从扩展弹窗打开设置页，主要配置项：
 
 - **对话提取** — 按平台启用 / 禁用对话采集。
-- **Embedding 服务** — DashScope API Key、模型（推荐 `text-embedding-v4`）、内容过滤（是否包含思考 / 搜索块）、切片大小与重叠。
+- **Embedding 服务** — 选择厂商（DashScope / 智谱 / 百度千帆 / 火山豆包 / Jina）、模型、API Key、内容过滤（是否包含思考 / 搜索块）、切片大小与重叠。
 - **向量库** — 选择后端；保存前请先用「测试连通性」验证。
 - **检索设置** — 模式（`combined` / `topk` / `threshold`）、Top-K、相似度阈值。
 - **LLM 服务** — 选择后端并配置凭证。
@@ -102,15 +110,22 @@
 | Supabase | 远程 | [docs/supabase-setup.md](docs/supabase-setup.md) |
 | Qdrant | 远程 | [docs/qdrant-setup.md](docs/qdrant-setup.md) |
 
-> 向量维度固定为 1024（与 DashScope `text-embedding-v4` 对齐）。配置远程后端前请先用「测试连通性」按钮验证。
+> 向量维度由模型配置决定（`model.dimension` > `provider.fallbackDimension` > 1024），当前预设模型均为 1024 维以匹配向量库 schema；支持 `dimensionsParam` 的模型（智谱 Embedding-3 / 豆包 / Jina v5）可在请求中强制指定维度。配置远程后端前请先用「测试连通性」按钮验证。
 
 ### LLM 后端
 
-| 后端 | 适用场景 |
-|------|----------|
-| Qwen / DashScope（阿里云百炼） | 默认；与 DashScope 嵌入服务配套 |
-| OpenAI 兼容 API | DeepSeek / OpenAI / 任意兼容接口 |
-| Ollama | 本地离线推理 |
+所有预设厂商均走 OpenAI 兼容协议（`backend: openai`），支持深度思考模式切换。
+
+| 厂商 | 模型 | 思考参数 |
+|------|------|----------|
+| 阿里云百炼 DashScope | Qwen3.7-Max / Plus、Qwen3.6-Flash / Pro、DeepSeek-V4-Flash / Pro、QwQ-Plus（仅思考） | `enable_thinking` |
+| DeepSeek 官方 | DeepSeek-V4-Flash / Pro | `thinking` |
+| 智谱 AI (BigModel) | GLM-5.2、GLM-5.1 | `thinking` |
+| 月之暗面 Kimi | kimi-k2.6、kimi-k2.5 | `thinking`（思考时 temperature=1.0，非思考时 0.6）|
+| 火山引擎豆包 | Doubao-Seed-2.1-Pro / Turbo、Doubao-Seed-2.0-Mini | `thinking` |
+| MiniMax | MiniMax-M3（混合）、MiniMax-M2.7（仅思考） | `thinking`（`adaptive` + `reasoning_split`）|
+
+> 支持自定义 OpenAI 兼容端点（如 Ollama 本地推理）：在设置页填写 baseUrl 与模型 ID 即可。
 
 ### SKILL 集成
 

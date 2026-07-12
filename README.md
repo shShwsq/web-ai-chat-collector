@@ -5,10 +5,10 @@ A browser extension that captures AI platform conversations and turns them into 
 ## Features
 
 - **Multi-platform conversation capture** — extracts user questions, AI answers, deep-thinking traces, and search citations. DOM mode is the recommended default (network interception available as an opt-in alternative).
-- **Semantic search** — conversations are chunked and embedded (DashScope `text-embedding-v4` / multimodal) so you can search by meaning, not just keywords.
+- **Semantic search** — conversations are chunked and embedded (multi-provider: DashScope / Zhipu / Baidu Qianfan / Volcengine Doubao / Jina) so you can search by meaning, not just keywords.
 - **AI Q&A (RAG)** — a floating Q&A ball on supported pages offers three modes, all streaming: organize information, generate quiz, and ask question. Answers are grounded in your saved conversations.
 - **Multi-backend vector store** — local IndexedDB out of the box; optionally switch to a remote vector database for cross-device / agent consumption.
-- **Multi-backend LLM** — Qwen/DashScope, OpenAI-compatible APIs, or local Ollama.
+- **Multi-provider LLM** — 6 preset providers (DashScope / DeepSeek / Zhipu / Kimi / Doubao / MiniMax) all via OpenAI-compatible protocol with deep-thinking mode toggle; custom OpenAI-compatible endpoints also supported.
 - **Skill integration** — a ready-made SKILL lets external agents (TRAE, OpenClaw, Cursor) semantically search the collected knowledge base.
 - **Export** — Markdown / JSON, single conversation or all at once.
 
@@ -44,6 +44,14 @@ Intercepts browser network requests and parses conversation data directly from A
 - Cannot be used on Kimi (WebSocket + protobuf transport)
 - Use this only if you need raw streaming data not yet exposed via DOM
 
+## Compliance & Privacy
+
+- **User-owned data only** — the extension captures only the conversations of the currently logged-in user on each supported AI platform. It does not access, scrape, or store any data belonging to other users.
+- **Local-first storage** — by default, captured conversations are stored only in the browser's local IndexedDB. No data is uploaded to any third-party server in the default configuration.
+- **Optional remote sync** — advanced features allow users to push their own conversation data to a self-hosted remote vector database (ChromaDB / Milvus / pgvector / Supabase / Qdrant) for cross-device access and SKILL-based retrieval by external agents (TRAE, OpenClaw, Cursor). This is an explicit user action using the user's own credentials and services.
+- **Mode recommendation** — DOM mode is the recommended default; it parses only page content the user has already rendered. Network interception mode is an opt-in alternative for capturing raw streaming data; its auxiliary request mechanism (reusing the user's own session credentials to fetch conversation history the user is authorized to view) is a means to improve capture completeness, not a data-scraping mechanism.
+- **No behavioral simulation** — the extension does not simulate logins, clicks, scrolls, or any user interaction with the platform UI.
+
 ## Architecture
 
 ```
@@ -52,27 +60,27 @@ Intercepts browser network requests and parses conversation data directly from A
 │                                                                  │
 │  Content Scripts           Service Worker (background.js)        │
 │  ├─ network-interceptor    ├─ db.js        (conversation store) │
-│  ├─ platform adapters      ├─ embedding.js (DashScope embed)    │
+│  ├─ platform adapters      ├─ embedding.js (5 embed providers) │
 │  ├─ floating-ball          ├─ vector-store.js (6 backends)      │
-│  └─ ai-ball (Q&A UI)       └─ llm.js       (3 backends)         │
+│  └─ ai-ball (Q&A UI)       └─ llm.js       (6 LLM providers)   │
 │                                                                  │
 │  Popup / Settings Page                                           │
 └──────────────┬───────────────────────────────┬───────────────────┘
                │                               │
                ▼                               ▼
         ┌─────────────┐               ┌─────────────────┐
-        │  DashScope  │               │  Vector Store   │
-        │  Embedding  │               │  local | remote │
-        └─────────────┘               └────────┬────────┘
-                                               │
+        │  Embedding  │               │  Vector Store   │
+        │  DashScope/ │               │  local | remote │
+        │  Zhipu/Baidu/               └────────┬────────┘
+        │  Doubao/Jina│                        │
+        └─────────────┘                        │
                                   ┌────────────┴────────────┐
                                   ▼                         ▼
                           ┌─────────────┐         ┌─────────────────┐
                           │  LLM (RAG)  │         │  SKILL          │
-                          │  dashscope/ │         │  (external      │
-                          │  openai/    │         │   agents)       │
-                          │  ollama     │         └─────────────────┘
-                          └─────────────┘
+                          │  6 presets  │         │  (external      │
+                          │  + custom   │         │   agents)       │
+                          └─────────────┘         └─────────────────┘
 ```
 
 ## Installation
@@ -86,7 +94,7 @@ Intercepts browser network requests and parses conversation data directly from A
 Open the settings page from the extension popup. Key sections:
 
 - **对话提取 (Capture)** — enable/disable capture per platform.
-- **Embedding 服务** — DashScope API Key, model (`text-embedding-v4` recommended), content filtering (include thinking / search blocks), chunk size & overlap.
+- **Embedding 服务** — choose provider (DashScope / Zhipu / Baidu Qianfan / Volcengine Doubao / Jina), model, API key, content filtering (include thinking / search blocks), chunk size & overlap.
 - **向量库 (Vector Store)** — choose backend; test connectivity before saving.
 - **检索设置 (Retrieval)** — mode (`combined` / `topk` / `threshold`), Top-K, score threshold.
 - **LLM 服务** — choose backend and configure credentials.
@@ -102,15 +110,22 @@ Open the settings page from the extension popup. Key sections:
 | Supabase | Remote | [docs/supabase-setup.md](docs/supabase-setup.md) |
 | Qdrant | Remote | [docs/qdrant-setup.md](docs/qdrant-setup.md) |
 
-> Vector dimension is fixed at 1024 (matches DashScope `text-embedding-v4`). Use the "测试连通性" button before saving a remote configuration.
+> Vector dimension is determined by model config (`model.dimension` > `provider.fallbackDimension` > 1024); all preset models are 1024-dim to match the vector store schema. Models supporting `dimensionsParam` (Zhipu Embedding-3 / Doubao / Jina v5) can force a specific dimension in the request. Use the "测试连通性" button before saving a remote configuration.
 
 ### LLM Backends
 
-| Backend | Use Case |
-|---------|----------|
-| Qwen / DashScope (阿里云百炼) | Default; pairs with DashScope embedding |
-| OpenAI-compatible API | DeepSeek / OpenAI / any compatible endpoint |
-| Ollama | Local, offline inference |
+All preset providers use the OpenAI-compatible protocol (`backend: openai`) and support deep-thinking mode toggling.
+
+| Provider | Models | Thinking Param |
+|----------|--------|----------------|
+| Alibaba Cloud DashScope | Qwen3.7-Max / Plus, Qwen3.6-Flash / Pro, DeepSeek-V4-Flash / Pro, QwQ-Plus (thinking-only) | `enable_thinking` |
+| DeepSeek Official | DeepSeek-V4-Flash / Pro | `thinking` |
+| Zhipu AI (BigModel) | GLM-5.2, GLM-5.1 | `thinking` |
+| Moonshot Kimi | kimi-k2.6, kimi-k2.5 | `thinking` (temperature=1.0 thinking / 0.6 non-thinking) |
+| Volcengine Doubao | Doubao-Seed-2.1-Pro / Turbo, Doubao-Seed-2.0-Mini | `thinking` |
+| MiniMax | MiniMax-M3 (hybrid), MiniMax-M2.7 (thinking-only) | `thinking` (`adaptive` + `reasoning_split`) |
+
+> Custom OpenAI-compatible endpoints (e.g., Ollama for local inference) are supported: enter the baseUrl and model ID in the settings page.
 
 ### Skill Integration
 
