@@ -16,4 +16,4 @@
 
   // AI 问答悬浮球
   new AIBall();
-})();
+})().catch(err => console.error('[Exporter] doubao 初始化失败:', err.message));

@@ -14,4 +14,4 @@
   console.log('[Exporter/Kimi] 初始化，模式: dom（Kimi 仅支持 DOM 模式）');
   const exporter = new ChatExporterBase('kimi', EXTRACTION_MODE.DOM);
   new AIBall();
-})();
+})().catch(err => console.error('[Exporter] kimi 初始化失败:', err.message));

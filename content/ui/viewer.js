@@ -1,5 +1,26 @@
 // ui/viewer.js - 对话查看器（弹窗 + Markdown/KaTeX 渲染）
 
+// 注册 marked 自定义 renderer：引用编号链接（文本仅为数字）渲染为圆圈上标
+// 仅影响 viewer 内的渲染，存储格式仍为 [N](url)
+// 各平台 DOM 提取的引用编号经 turndown 转为 [N](url)，marked 默认渲染为普通蓝色链接，
+// 辨识度低；加圆圈包裹与原平台（DeepSeek .ds-markdown-cite / 复旦 a.citation-link.circle）视觉一致
+if (typeof marked !== 'undefined') {
+  marked.use({
+    renderer: {
+      link({ href, title, text }) {
+        // 基本安全：仅允许 http/https/mailto/相对路径协议
+        const safeHref = /^(https?:|mailto:|\/|#)/i.test(href) ? href : '#';
+        const titleAttr = title ? ` title="${title}"` : '';
+        // 引用编号：链接文本仅为数字，渲染为圆圈上标
+        if (/^\d+$/.test(text.trim())) {
+          return `<a href="${safeHref}"${titleAttr} class="cite-ref" target="_blank" rel="noreferrer">${text}</a>`;
+        }
+        return `<a href="${safeHref}"${titleAttr} target="_blank" rel="noreferrer">${text}</a>`;
+      }
+    }
+  });
+}
+
 class ConversationViewer {
   constructor() {
     this.viewer = null;

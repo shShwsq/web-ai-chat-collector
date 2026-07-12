@@ -555,6 +555,16 @@ header h1 {
   accent-color: #7c3aed;
 }
 
+/* 禁用状态的 radio 及其 label 文本（如 Kimi 的网络拦截） */
+.mode-options input[type="radio"]:disabled {
+  cursor: not-allowed;
+}
+
+.mode-options label:has(input[type="radio"]:disabled) {
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
 .mode-options .mode-disabled {
   opacity: 0.4;
   cursor: not-allowed;

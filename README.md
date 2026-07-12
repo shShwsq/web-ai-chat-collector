@@ -4,7 +4,7 @@ A browser extension that captures AI platform conversations and turns them into 
 
 ## Features
 
-- **Multi-platform conversation capture** — intercepts AI platform API responses (network mode) with DOM-mode fallback, extracting user questions, AI answers, deep-thinking traces, and search citations.
+- **Multi-platform conversation capture** — extracts user questions, AI answers, deep-thinking traces, and search citations. DOM mode is the recommended default (network interception available as an opt-in alternative).
 - **Semantic search** — conversations are chunked and embedded (DashScope `text-embedding-v4` / multimodal) so you can search by meaning, not just keywords.
 - **AI Q&A (RAG)** — a floating Q&A ball on supported pages offers three modes, all streaming: organize information, generate quiz, and ask question. Answers are grounded in your saved conversations.
 - **Multi-backend vector store** — local IndexedDB out of the box; optionally switch to a remote vector database for cross-device / agent consumption.
@@ -14,32 +14,35 @@ A browser extension that captures AI platform conversations and turns them into 
 
 ## Supported Platforms
 
-| Platform | Network Interception | DOM Mode |
-|----------|:-------------------:|:--------:|
+| Platform | DOM Mode | Network Interception |
+|----------|:--------:|:--------------------:|
 | DeepSeek (chat.deepseek.com) | ✅ | ✅ |
 | Qianwen (www.qianwen.com) | ✅ | ✅ |
 | Fudan AI Agent (aiagent.fudan.edu.cn) | ✅ | ✅ |
 | Doubao (www.doubao.com) | ✅ | ✅ |
+| Kimi (www.kimi.com) | ✅ | — (WebSocket + protobuf, DOM only) |
 
 ## Mode Descriptions
 
-### Network Interception Mode (Recommended)
+### DOM Mode (Recommended)
 
-Intercepts browser network requests and parses conversation data directly from API responses. Data is complete and accurate, capable of extracting:
+Parses the rendered page DOM to extract conversations. Universal compatibility, resilient to API changes, and preserves full Markdown formatting (via `turndown.js` + `turndown-plugin-gfm`) including headings, lists, tables, code blocks, and math (KaTeX).
 
-- Conversation content (user questions + AI responses)
-- Deep thinking / reasoning process
-- Search sources and citations
-- Conversation titles
+- All five supported platforms work out of the box
+- Markdown formatting is preserved from rendered HTML — headings, lists, **GFM tables**, strikethrough, task lists, fenced code, and KaTeX math (inline `$...$` / block `$$...$$`)
+- Deep-thinking traces and search citations are extracted per platform (Kimi/DeepSeek/Qianwen/Doubao/Fudan)
+- Independent of platform API protocol (REST / WebSocket / protobuf)
+- Actively under optimization — further improvements to thinking-block and search-citation extraction are in progress
 
-### DOM Mode
+### Network Interception Mode
 
-Extracts conversation content by parsing the page DOM structure. Serves as a fallback when network interception is not available.
+Intercepts browser network requests and parses conversation data directly from API responses. Can capture the raw stream including thinking traces and search citations. Opt-in per platform from the settings page.
 
-**Known Limitations:**
+**Trade-offs:**
 
-- DOM mode may not accurately identify search sources and thinking content, as the page DOM structure can change dynamically and thinking/search blocks are rendered alongside the main response.
-- Network interception mode is recommended for the best data completeness.
+- Tightly coupled to each platform's API contract; breaks when the platform updates its API
+- Cannot be used on Kimi (WebSocket + protobuf transport)
+- Use this only if you need raw streaming data not yet exposed via DOM
 
 ## Architecture
 
@@ -128,25 +131,63 @@ A ready-made SKILL (`docs/skills/`) lets external agents (TRAE, OpenClaw, Cursor
 
 ```
 ai-plugin/
-├── manifest.json
-├── background.js              # Service Worker (message routing, RAG orchestration)
+├── manifest.json              # MV3 manifest (host permissions, content scripts)
+├── background.js              # Service Worker entry (loads lib + bg modules)
+├── models.json                # LLM / Embedding provider catalog (presets & model lists)
+├── bg/                        # Service Worker business modules
+│   ├── router.js              # Message routing + ensureInit guard
+│   ├── init.js                # Startup initialization
+│   ├── settings-handlers.js   # Settings R/W + connectivity tests
+│   ├── conversations.js       # Conversation CRUD
+│   ├── ai-handlers.js         # RAG orchestration (Q&A / organize / quiz)
+│   ├── vector-handlers.js     # Vector index build / rebuild / stats
+│   ├── export.js              # Markdown / JSON export
+│   └── data-handlers.js       # Storage info / clear / reset
 ├── content/                   # Content scripts
+│   ├── adapter-registry.js    # EXTRACTION_MODE + getPlatformMode + adapter registry
+│   ├── exporter-base.js       # ChatExporterBase (network / DOM dispatch)
 │   ├── network-interceptor.js # Shared network hook (MAIN world)
-│   ├── network/               # Per-platform network adapters
-│   ├── dom/                   # Per-platform DOM adapters
-│   ├── adapter-registry.js
-│   ├── exporter-base.js
 │   ├── ai-ball.js             # AI Q&A floating ball + panel
+│   ├── kimi.js                # Kimi entry (DOM-only, no network adapter)
+│   ├── deepseek.js / qianwen.js / fudan.js / doubao.js  # Per-platform entries
+│   ├── network/               # Per-platform network adapters (REST parsing)
+│   │   ├── common.js
+│   │   ├── deepseek.js / qianwen.js / fudan.js / doubao.js
+│   ├── dom/                   # Per-platform DOM adapters
+│   │   ├── html-to-markdown.js  # Unified HTML→Markdown wrapper (turndown.js + GFM)
+│   │   ├── katex-html-to-latex.js # KaTeX HTML→LaTeX reverse parser (Kimi fallback)
+│   │   ├── kimi.js / deepseek.js / qianwen.js / fudan.js / doubao.js
 │   └── ui/                    # floating-ball, viewer, styles
-├── lib/                       # Shared services
+│       ├── floating-ball.js / viewer.js / styles.js
+├── lib/                       # Shared services (loaded by both SW and content)
 │   ├── db.js                  # IndexedDB conversation store
-│   ├── embedding.js           # DashScope embedding + chunking
+│   ├── embedding.js           # Embedding abstraction (DashScope / multimodal)
 │   ├── vector-store.js        # Vector store abstraction (6 backends)
-│   └── llm.js                 # LLM abstraction (3 backends)
+│   ├── llm.js                 # LLM abstraction (3 backends, streaming)
+│   ├── marked.min.js          # Markdown → HTML renderer
+│   ├── katex.min.js + .css    # Math rendering
+│   ├── turndown.min.js        # HTML → Markdown converter (DOM mode)
+│   └── turndown-plugin-gfm.js # GFM plugin: tables / strikethrough / task lists
 ├── popup/                     # Popup + settings page
+│   ├── popup.html / popup.js / popup.css
+│   └── settings.html / settings.js / settings.css
 ├── docs/                      # Setup guides + SKILL integration
+│   ├── chroma-setup.md / milvus-setup.md / pgvector-setup.md
+│   ├── supabase-setup.md / qdrant-setup.md / skill-setup.md
+│   └── skills/                # SKILL for external agents
 └── .github/workflows/         # Build & release pipeline
 ```
+
+## Third-Party Libraries
+
+| Library | Version | Purpose | Used By |
+|---------|---------|---------|---------|
+| [turndown](https://github.com/mixmark-io/turndown) | 7.2.4 | HTML → Markdown converter | DOM mode extraction (`content/dom/html-to-markdown.js`) |
+| [turndown-plugin-gfm](https://github.com/mixmark-io/turndown-plugin-gfm) | 1.0.2 | GitHub Flavored Markdown plugin for turndown — tables, strikethrough, task lists, highlighted code blocks | DOM mode extraction |
+| [marked](https://github.com/markedjs/marked) | — | Markdown → HTML renderer | Viewer & AI Q&A panel (`content/ui/viewer.js`) |
+| [KaTeX](https://github.com/KaTeX/KaTeX) | — | Math formula rendering | Viewer & AI Q&A panel |
+
+> KaTeX reverse parsing: most platforms preserve the `<annotation encoding="application/x-tex">` source layer, so turndown extracts LaTeX directly. Kimi removes this layer, so `content/dom/katex-html-to-latex.js` recursively parses the `.katex-html` DOM to reconstruct the LaTeX source (integrals, fractions, superscripts/subscripts, derivatives, etc.).
 
 ## License
 

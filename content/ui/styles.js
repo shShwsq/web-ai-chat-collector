@@ -471,12 +471,43 @@ const AIChatStyles = {
         background: #f8fafc;
         font-weight: 600;
       }
+      #ai-chat-viewer .viewer-body .msg-content h1,
+      #ai-chat-viewer .viewer-body .msg-content h2,
+      #ai-chat-viewer .viewer-body .msg-content h3,
+      #ai-chat-viewer .viewer-body .msg-content h4,
+      #ai-chat-viewer .viewer-body .msg-content h5,
+      #ai-chat-viewer .viewer-body .msg-content h6 {
+        font-weight: 600;
+        color: #1a1a1a;
+        margin: 12px 0 6px;
+        line-height: 1.3;
+      }
+      #ai-chat-viewer .viewer-body .msg-content h1 { font-size: 18px; }
+      #ai-chat-viewer .viewer-body .msg-content h2 { font-size: 16px; }
+      #ai-chat-viewer .viewer-body .msg-content h3 { font-size: 15px; }
+      #ai-chat-viewer .viewer-body .msg-content h4 { font-size: 14px; }
+      #ai-chat-viewer .viewer-body .msg-content h5 { font-size: 13px; }
+      #ai-chat-viewer .viewer-body .msg-content h6 { font-size: 12px; color: #6b7280; }
+      #ai-chat-viewer .viewer-body .msg-content strong,
+      #ai-chat-viewer .viewer-body .msg-content b {
+        font-weight: 600;
+        color: #111827;
+      }
       #ai-chat-viewer .viewer-body .msg-content ul,
       #ai-chat-viewer .viewer-body .msg-content ol {
-        padding-left: 20px;
+        padding-left: 24px;
         margin: 4px 0;
+        list-style: revert;
       }
-      #ai-chat-viewer .viewer-body .msg-content li { margin: 2px 0; }
+      #ai-chat-viewer .viewer-body .msg-content ul { list-style-type: disc; }
+      #ai-chat-viewer .viewer-body .msg-content ol { list-style-type: decimal; }
+      #ai-chat-viewer .viewer-body .msg-content li {
+        margin: 2px 0;
+        display: list-item;
+      }
+      #ai-chat-viewer .viewer-body .msg-content li::marker {
+        color: #6b7280;
+      }
       #ai-chat-viewer .viewer-body .msg-content blockquote {
         border-left: 3px solid #d1d5db;
         padding-left: 12px;
@@ -489,6 +520,27 @@ const AIChatStyles = {
       }
       #ai-chat-viewer .viewer-body .msg-content a:hover {
         text-decoration: underline;
+      }
+      #ai-chat-viewer .viewer-body .msg-content a.cite-ref {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        margin: 0 1px;
+        border: 1px solid #2563eb;
+        border-radius: 50%;
+        color: #2563eb;
+        font-size: 11px;
+        line-height: 1;
+        vertical-align: super;
+        text-decoration: none;
+        box-sizing: border-box;
+      }
+      #ai-chat-viewer .viewer-body .msg-content a.cite-ref:hover {
+        background: #2563eb;
+        color: #fff;
+        text-decoration: none;
       }
       #ai-chat-viewer .viewer-body .msg-content img {
         max-width: 100%;

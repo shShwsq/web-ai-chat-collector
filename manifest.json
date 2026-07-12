@@ -47,6 +47,8 @@
       "js": [
         "lib/marked.min.js",
         "lib/katex.min.js",
+        "lib/turndown.min.js",
+        "lib/turndown-plugin-gfm.js",
         "content/adapter-registry.js",
         "content/ui/styles.js",
         "content/ui/viewer.js",
@@ -55,6 +57,8 @@
         "content/exporter-base.js",
         "content/network/common.js",
         "content/network/deepseek.js",
+        "content/dom/katex-html-to-latex.js",
+        "content/dom/html-to-markdown.js",
         "content/dom/deepseek.js",
         "content/deepseek.js"
       ],
@@ -73,6 +77,8 @@
       "js": [
         "lib/marked.min.js",
         "lib/katex.min.js",
+        "lib/turndown.min.js",
+        "lib/turndown-plugin-gfm.js",
         "content/adapter-registry.js",
         "content/ui/styles.js",
         "content/ui/viewer.js",
@@ -81,6 +87,8 @@
         "content/exporter-base.js",
         "content/network/common.js",
         "content/network/qianwen.js",
+        "content/dom/katex-html-to-latex.js",
+        "content/dom/html-to-markdown.js",
         "content/dom/qianwen.js",
         "content/qianwen.js"
       ],
@@ -99,6 +107,8 @@
       "js": [
         "lib/marked.min.js",
         "lib/katex.min.js",
+        "lib/turndown.min.js",
+        "lib/turndown-plugin-gfm.js",
         "content/adapter-registry.js",
         "content/ui/styles.js",
         "content/ui/viewer.js",
@@ -107,6 +117,8 @@
         "content/exporter-base.js",
         "content/network/common.js",
         "content/network/fudan.js",
+        "content/dom/katex-html-to-latex.js",
+        "content/dom/html-to-markdown.js",
         "content/dom/fudan.js",
         "content/fudan.js"
       ],
@@ -125,6 +137,8 @@
       "js": [
         "lib/marked.min.js",
         "lib/katex.min.js",
+        "lib/turndown.min.js",
+        "lib/turndown-plugin-gfm.js",
         "content/adapter-registry.js",
         "content/ui/styles.js",
         "content/ui/viewer.js",
@@ -133,6 +147,8 @@
         "content/exporter-base.js",
         "content/network/common.js",
         "content/network/doubao.js",
+        "content/dom/katex-html-to-latex.js",
+        "content/dom/html-to-markdown.js",
         "content/dom/doubao.js",
         "content/doubao.js"
       ],
@@ -143,12 +159,16 @@
       "js": [
         "lib/marked.min.js",
         "lib/katex.min.js",
+        "lib/turndown.min.js",
+        "lib/turndown-plugin-gfm.js",
         "content/adapter-registry.js",
         "content/ui/styles.js",
         "content/ui/viewer.js",
         "content/ui/floating-ball.js",
         "content/ai-ball.js",
         "content/exporter-base.js",
+        "content/dom/katex-html-to-latex.js",
+        "content/dom/html-to-markdown.js",
         "content/dom/kimi.js",
         "content/kimi.js"
       ],

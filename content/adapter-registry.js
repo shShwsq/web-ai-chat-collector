@@ -43,12 +43,34 @@ async function isPlatformEnabled(platformName) {
 
 // 读取指定平台的提取模式（由 content script 在初始化时调用）
 // 默认值表只在 bg/settings-handlers.js 维护一份，content script 通过消息向 bg 查询
+// 注意：扩展重新加载后旧 content script 的 chrome.runtime 上下文会失效，
+// 此时不应 reject（会导致 Uncaught promise），而应 resolve 默认值让适配器降级运行
+// 默认降级为 DOM 模式：兼容性更好，且不依赖网络拦截器是否成功启动
 function getPlatformMode(platformName) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ type: 'GET_SETTINGS', category: 'platformModes' }, (response) => {
-      if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
-      if (!response || response.error) return reject(new Error(response?.error || '未知错误'));
-      resolve(response[platformName] || EXTRACTION_MODE.NETWORK);
-    });
+  return new Promise((resolve) => {
+    try {
+      // context 失效检查（扩展重新加载后 chrome.runtime.id 变为 undefined）
+      if (!chrome.runtime?.id) {
+        console.warn('[AdapterRegistry] chrome.runtime 上下文已失效，getPlatformMode 降级为 DOM 模式');
+        resolve(EXTRACTION_MODE.DOM);
+        return;
+      }
+      chrome.runtime.sendMessage({ type: 'GET_SETTINGS', category: 'platformModes' }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn('[AdapterRegistry] getPlatformMode 查询失败，降级为 DOM 模式:', chrome.runtime.lastError.message);
+          resolve(EXTRACTION_MODE.DOM);
+          return;
+        }
+        if (!response || response.error) {
+          console.warn('[AdapterRegistry] getPlatformMode 返回错误，降级为 DOM 模式:', response?.error);
+          resolve(EXTRACTION_MODE.DOM);
+          return;
+        }
+        resolve(response[platformName] || EXTRACTION_MODE.DOM);
+      });
+    } catch (e) {
+      console.warn('[AdapterRegistry] getPlatformMode 异常，降级为 DOM 模式:', e.message);
+      resolve(EXTRACTION_MODE.DOM);
+    }
   });
 }

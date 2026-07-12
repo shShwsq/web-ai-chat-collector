@@ -4,7 +4,7 @@
 
 ## 功能特性
 
-- **多平台对话采集** — 拦截 AI 平台 API 响应（网络拦截模式），并以 DOM 模式作为兜底，完整提取用户提问、AI 回答、深度思考过程和联网搜索引用。
+- **多平台对话采集** — 完整提取用户提问、AI 回答、深度思考过程和联网搜索引用。默认推荐 DOM 模式（兼容性更好、不受 API 协议限制），网络拦截模式作为可选增强。
 - **语义搜索** — 对话被切片并嵌入（DashScope `text-embedding-v4` / 多模态），支持按语义检索而非仅靠关键词。
 - **AI 问答（RAG）** — 在支持的页面提供悬浮问答球，三种模式均支持流式输出：整理信息、生成测验、AI 问答。回答基于你已保存的对话历史。
 - **多后端向量库** — 默认本地 IndexedDB（零配置）；可切换到远程向量库，支持跨设备 / 智能体消费。
@@ -14,32 +14,35 @@
 
 ## 支持平台
 
-| 平台 | 网络拦截模式 | DOM 模式 |
-|------|:----------:|:-------:|
+| 平台 | DOM 模式 | 网络拦截模式 |
+|------|:--------:|:-----------:|
 | DeepSeek (chat.deepseek.com) | ✅ | ✅ |
 | 千问 (www.qianwen.com) | ✅ | ✅ |
 | 复旦智汇岛 (aiagent.fudan.edu.cn) | ✅ | ✅ |
 | 豆包 (www.doubao.com) | ✅ | ✅ |
+| Kimi (www.kimi.com) | ✅ | — （WebSocket + protobuf，仅 DOM） |
 
 ## 模式说明
 
-### 网络拦截模式（推荐）
+### DOM 模式（推荐）
 
-通过拦截浏览器网络请求，从 API 响应中直接解析对话数据。数据完整、准确，能完整提取：
+通过解析渲染后的页面 DOM 提取对话内容。兼容性最好、对平台 API 变更不敏感，并通过 `turndown.js` + `turndown-plugin-gfm` 完整保留 Markdown 格式（标题、列表、表格、代码块、数学公式 KaTeX 等）。
 
-- 对话内容（用户提问 + AI 回答）
-- 深度思考 / 推理过程
-- 搜索来源和引用
-- 对话标题
+- 五个平台开箱即用，覆盖最广
+- 从渲染后的 HTML 还原 Markdown 格式 —— 标题、列表、**GFM 表格**、删除线、任务列表、围栏代码块、KaTeX 数学公式（行内 `$...$` / 块级 `$$...$$`）
+- 各平台深度思考过程和联网搜索引用均支持提取（Kimi/DeepSeek/千问/豆包/复旦）
+- 不依赖平台 API 协议（REST / WebSocket / protobuf 均可）
+- 持续优化中 —— 思考块、搜索引用的提取精度仍在进一步提升
 
-### DOM 模式
+### 网络拦截模式
 
-通过解析页面 DOM 结构提取对话内容。作为网络拦截模式的补充，适用于网络拦截未生效的场景。
+通过拦截浏览器网络请求，从 API 响应中直接解析对话数据。可获取原始流式数据，包括思考过程和搜索引用。可在设置页按平台手动启用。
 
-**已知限制：**
+**权衡：**
 
-- DOM 模式可能无法准确识别搜索来源和思考内容，因为页面 DOM 结构可能动态变化，且思考 / 搜索区块的渲染方式与正式回答混合在一起。
-- 建议优先使用网络拦截模式以获得最佳数据完整性。
+- 与各平台 API 契约强耦合，平台更新接口时易失效
+- Kimi 无法使用（WebSocket + protobuf 传输）
+- 仅在需要 DOM 尚未覆盖的原始流式数据时启用
 
 ## 架构
 
@@ -128,25 +131,63 @@
 
 ```
 ai-plugin/
-├── manifest.json
-├── background.js              # Service Worker（消息路由 + RAG 编排）
+├── manifest.json              # MV3 清单（host_permissions、content scripts）
+├── background.js              # Service Worker 入口（加载 lib + bg 模块）
+├── models.json                # LLM / Embedding 厂商目录（预设与模型清单）
+├── bg/                        # Service Worker 业务模块
+│   ├── router.js              # 消息路由 + ensureInit 守卫
+│   ├── init.js                # 启动初始化
+│   ├── settings-handlers.js   # 设置读写 + 连通性测试
+│   ├── conversations.js       # 对话 CRUD
+│   ├── ai-handlers.js         # RAG 编排（问答 / 整理 / 测验）
+│   ├── vector-handlers.js     # 向量索引构建 / 重建 / 统计
+│   ├── export.js              # Markdown / JSON 导出
+│   └── data-handlers.js       # 存储信息 / 清空 / 重置
 ├── content/                   # Content Scripts
+│   ├── adapter-registry.js    # EXTRACTION_MODE + getPlatformMode + 适配器注册表
+│   ├── exporter-base.js       # ChatExporterBase（网络 / DOM 分派）
 │   ├── network-interceptor.js # 共享网络钩子（MAIN world）
-│   ├── network/               # 各平台网络适配器
-│   ├── dom/                   # 各平台 DOM 适配器
-│   ├── adapter-registry.js
-│   ├── exporter-base.js
 │   ├── ai-ball.js             # AI 问答悬浮球 + 面板
-│   └── ui/                    # floating-ball / viewer / styles
-├── lib/                       # 共享服务
+│   ├── kimi.js                # Kimi 入口（仅 DOM，无网络适配器）
+│   ├── deepseek.js / qianwen.js / fudan.js / doubao.js  # 各平台入口
+│   ├── network/               # 各平台网络适配器（REST 解析）
+│   │   ├── common.js
+│   │   ├── deepseek.js / qianwen.js / fudan.js / doubao.js
+│   ├── dom/                   # 各平台 DOM 适配器
+│   │   ├── html-to-markdown.js  # 统一的 HTML→Markdown 包装（turndown.js + GFM）
+│   │   ├── katex-html-to-latex.js # KaTeX HTML→LaTeX 反向解析（Kimi 降级路径）
+│   │   ├── kimi.js / deepseek.js / qianwen.js / fudan.js / doubao.js
+│   └── ui/                    # 悬浮球 / 查看器 / 样式
+│       ├── floating-ball.js / viewer.js / styles.js
+├── lib/                       # 共享服务（SW 与 content 共用）
 │   ├── db.js                  # IndexedDB 对话存储
-│   ├── embedding.js           # DashScope 嵌入 + 切片
+│   ├── embedding.js           # 嵌入抽象层（DashScope / 多模态）
 │   ├── vector-store.js        # 向量库抽象层（6 种后端）
-│   └── llm.js                 # LLM 抽象层（3 种后端）
+│   ├── llm.js                 # LLM 抽象层（3 种后端，流式）
+│   ├── marked.min.js          # Markdown → HTML 渲染器
+│   ├── katex.min.js + .css    # 数学公式渲染
+│   ├── turndown.min.js        # HTML → Markdown 转换器（DOM 模式使用）
+│   └── turndown-plugin-gfm.js # GFM 插件：表格 / 删除线 / 任务列表
 ├── popup/                     # 弹窗 + 设置页
+│   ├── popup.html / popup.js / popup.css
+│   └── settings.html / settings.js / settings.css
 ├── docs/                      # 部署指南 + SKILL 集成
+│   ├── chroma-setup.md / milvus-setup.md / pgvector-setup.md
+│   ├── supabase-setup.md / qdrant-setup.md / skill-setup.md
+│   └── skills/                # 外部智能体 SKILL
 └── .github/workflows/         # 构建与发布流水线
 ```
+
+## 第三方库
+
+| 库 | 版本 | 用途 | 使用方 |
+|------|------|------|--------|
+| [turndown](https://github.com/mixmark-io/turndown) | 7.2.4 | HTML → Markdown 转换器 | DOM 模式提取（`content/dom/html-to-markdown.js`） |
+| [turndown-plugin-gfm](https://github.com/mixmark-io/turndown-plugin-gfm) | 1.0.2 | turndown 的 GitHub Flavored Markdown 插件 —— 表格、删除线、任务列表、高亮代码块 | DOM 模式提取 |
+| [marked](https://github.com/markedjs/marked) | — | Markdown → HTML 渲染器 | 查看器 & AI 问答面板（`content/ui/viewer.js`） |
+| [KaTeX](https://github.com/KaTeX/KaTeX) | — | 数学公式渲染 | 查看器 & AI 问答面板 |
+
+> KaTeX 反向解析：大多数平台保留了 `<annotation encoding="application/x-tex">` 源码层，turndown 可直接提取 LaTeX。Kimi 移除了该层，由 `content/dom/katex-html-to-latex.js` 递归解析 `.katex-html` DOM 重建 LaTeX 源码（积分、分式、上下标、导数等）。
 
 ## License
 

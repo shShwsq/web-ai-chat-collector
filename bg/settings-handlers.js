@@ -127,11 +127,12 @@ async function savePlatformSettings(settings) {
 }
 
 // 平台提取模式（网络拦截 / DOM提取）
+// 默认全部走 DOM 提取：兼容性更好，且网络拦截对各平台接口变动敏感
 const DEFAULT_PLATFORM_MODES = {
-  deepseek: 'network',
-  qianwen: 'network',
-  fudan: 'network',
-  doubao: 'network',
+  deepseek: 'dom',
+  qianwen: 'dom',
+  fudan: 'dom',
+  doubao: 'dom',
   kimi: 'dom'  // Kimi 使用 WS + protobuf，仅支持 DOM
 };
 

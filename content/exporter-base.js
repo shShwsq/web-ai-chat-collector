@@ -5,7 +5,7 @@
 // 导出器基类
 // ============================================================
 class ChatExporterBase {
-  constructor(platformName, mode = EXTRACTION_MODE.NETWORK) {
+  constructor(platformName, mode = EXTRACTION_MODE.DOM) {
     this.platformName = platformName;
     this.mode = mode;
     
@@ -426,10 +426,20 @@ class ChatExporterBase {
   async captureCurrentConversation() {
     // 网络模式下由拦截器直接保存，此方法仅DOM模式使用
     if (this.mode === EXTRACTION_MODE.NETWORK) return;
-    
+
     try {
+      // 流式输出检查：若适配器提供 isStreaming() 且返回 true，跳过本次采集并安排重试
+      const domAdapter = this.getDomAdapter();
+      if (domAdapter && typeof domAdapter.isStreaming === 'function') {
+        if (domAdapter.isStreaming()) {
+          console.log(`[Exporter/DOM] ${this.platformName} 流式输出进行中，跳过本次采集，1.5s 后重试`);
+          this.debounceCapture(1500);
+          return;
+        }
+      }
+
       const conversation = this.exportFromDom();
-      
+
       if (!conversation) {
         console.log('[Exporter/Debug] DOM提取返回null，可能页面未加载完');
         return;

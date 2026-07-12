@@ -48,6 +48,15 @@ DOM_ADAPTERS.kimi = {
     return raw.replace(/\s*[-–—]\s*Kimi\s*$/i, '').trim() || '未命名对话';
   },
 
+  // 检测流式输出是否进行中
+  // 信号：.core-spiral-loading（螺旋加载动画）或 .send-button-container.stop（发送按钮变为停止状态）
+  isStreaming: () => {
+    if (document.querySelector('.core-spiral-loading')) return true;
+    const sendBtn = document.querySelector('.send-button-container');
+    if (sendBtn && sendBtn.classList.contains('stop')) return true;
+    return false;
+  },
+
   // 从 DOM 提取消息
   extractMessages: () => {
     const messages = [];
@@ -159,11 +168,13 @@ DOM_ADAPTERS.kimi = {
         .join('\n\n');
     }
 
-    // 正式回答: .segment-content-box 下的 markdown（排除 toolcall 内的）
-    const answerMarkdowns = el.querySelectorAll('.segment-content-box .markdown-container .markdown');
+    // 正式回答: .segment-content-box 下的 markdown
+    // 注意：segment-content-box 内可能嵌套 toolcall-container，需过滤掉思考内容的 markdown
+    const answerMarkdowns = Array.from(el.querySelectorAll('.segment-content-box .markdown-container .markdown'))
+      .filter(m => !m.closest('.toolcall-container'));
     console.log('[Kimi/DOM] _extractAssistantContent: answerMarkdowns=%d, thinking长度=%d', answerMarkdowns.length, thinking.length);
     if (answerMarkdowns.length > 0) {
-      answer = Array.from(answerMarkdowns)
+      answer = answerMarkdowns
         .map(m => DOM_ADAPTERS.kimi._extractMarkdownText(m))
         .filter(t => t.trim())
         .join('\n\n');
@@ -205,39 +216,22 @@ DOM_ADAPTERS.kimi = {
     return _buildKimiAssistantContent(thinking, answer);
   },
 
-  // 从 .markdown 元素提取纯文本
-  // 保留段落分隔（\n\n），列表项用换行，去除 SVG/动画 CSS 噪声
+  // 从 .markdown 元素提取 Markdown 文本
+  // 使用 turndown.js 将渲染后的 HTML 转为 Markdown，保留标题/列表/粗体/代码块等格式
+  // 降级：若 turndown 未加载，回退到 textContent
   _extractMarkdownText: (markdownEl) => {
     if (!markdownEl) return '';
 
-    // 克隆后移除噪声元素
+    if (typeof window.HtmlToMarkdown !== 'undefined' && window.HtmlToMarkdown.convert) {
+      const md = window.HtmlToMarkdown.convert(markdownEl);
+      console.log('[Kimi/DOM] _extractMarkdownText (turndown): 长度=%d, 预览=%s', md.length, md.substring(0, 120));
+      return md;
+    }
+
+    // 降级：textContent
+    console.warn('[Kimi/DOM] HtmlToMarkdown 未加载，降级为 textContent');
     const clone = markdownEl.cloneNode(true);
     clone.querySelectorAll('style, svg, .iconify').forEach(n => n.remove());
-
-    // 按段落提取（只取顶层 block，避免嵌套重复）
-    const paragraphs = [];
-    const allBlocks = clone.querySelectorAll('.paragraph, pre, code, li, blockquote, table');
-    for (const block of allBlocks) {
-      // 跳过嵌套 block（父级也是这些标签的）
-      if (block.parentElement && block.parentElement.closest('.paragraph, pre, code, li, blockquote, table')) continue;
-      const text = block.textContent.trim();
-      if (text) paragraphs.push(text);
-    }
-
-    // 如果没有 .paragraph 结构，直接取 textContent
-    if (paragraphs.length === 0) {
-      return clone.textContent.trim();
-    }
-
-    // 去重（处理嵌套情况）
-    const seen = new Set();
-    const unique = [];
-    for (const p of paragraphs) {
-      if (!seen.has(p)) {
-        seen.add(p);
-        unique.push(p);
-      }
-    }
-    return unique.join('\n\n');
+    return clone.textContent.trim();
   }
 };

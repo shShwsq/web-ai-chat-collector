@@ -17,4 +17,4 @@
 
   // AI 问答悬浮球
   new AIBall();
-})();
+})().catch(err => console.error('[Exporter] deepseek 初始化失败:', err.message));

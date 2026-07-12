@@ -619,10 +619,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const radio = document.querySelector(`input[name="${platform}-mode"][value="${mode}"]`);
         if (radio) radio.checked = true;
       };
-      setMode('deepseek', modeResp.deepseek || 'network');
-      setMode('qianwen', modeResp.qianwen || 'network');
-      setMode('fudan', modeResp.fudan || 'network');
-      setMode('doubao', modeResp.doubao || 'network');
+      setMode('deepseek', modeResp.deepseek || 'dom');
+      setMode('qianwen', modeResp.qianwen || 'dom');
+      setMode('fudan', modeResp.fudan || 'dom');
+      setMode('doubao', modeResp.doubao || 'dom');
       // Kimi 固定 DOM，无 radio 可设
     }
 
@@ -746,7 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 平台提取模式（网络拦截 / DOM提取）
     const getMode = (platform) => {
       const radio = document.querySelector(`input[name="${platform}-mode"]:checked`);
-      return radio ? radio.value : 'network';
+      return radio ? radio.value : 'dom';
     };
     await sendMessage({
       type: 'SAVE_SETTINGS',
