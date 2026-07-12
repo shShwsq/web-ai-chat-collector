@@ -46,14 +46,41 @@ KB_VSTORE_COLLECTION=ai_chat_vectors
 # 向量库 API Key（ChromaDB 本地部署不需要；Supabase 需要；Milvus Zilliz Cloud 需要）
 KB_VSTORE_API_KEY=
 
-# DashScope API Key（和 Chrome 扩展用同一个）
-KB_DASHSCOPE_KEY=sk-你的dashscope-api-key
+# ============ Embedding 配置（须与 Chrome 扩展写入端一致） ============
+# 厂商：dashscope / zhipu / baidu / volcengine / jina / custom
+# 必须与 Chrome 扩展「设置 → Embedding」中选定的厂商一致，否则向量空间不匹配、检索无效
+KB_EMBEDDING_PROVIDER=dashscope
+
+# 厂商 API Key（与 Chrome 扩展用同一个）
+KB_EMBEDDING_API_KEY=sk-你的-api-key
+
+# 模型 ID（预设厂商可留空使用默认值，但建议显式写出以确保与扩展一致）
+# KB_EMBEDDING_MODEL=text-embedding-v4
+
+# 厂商 baseUrl（预设厂商可留空；custom 必填）
+# KB_EMBEDDING_BASE_URL=
+
+# 期望向量维度（默认 1024，须与向量库 collection schema 匹配）
+# KB_EMBEDDING_DIM=1024
 
 # 是否校验 TLS 证书（自签证书设 false）
 KB_VSTORE_VERIFY_TLS=false
 ```
 
-> 配置一次即可，后续使用直接执行下面的命令。
+### Embedding 厂商预设值
+
+下面列出各厂商的预设 `baseUrl`、默认模型和维度，方便对照配置（与插件 `models.json` 一致）：
+
+| `KB_EMBEDDING_PROVIDER` | 厂商 | 默认模型 | baseUrl（留空时自动用） | 维度 |
+|---|---|---|---|---|
+| `dashscope` | 阿里云百炼 DashScope | `text-embedding-v4` | `https://dashscope.aliyuncs.com/api/v1` | 1024 |
+| `zhipu` | 智谱 AI | `embedding-3` | `https://open.bigmodel.cn/api/paas/v4` | 1024（带 `dimensions` 参数） |
+| `baidu` | 百度千帆 | `bge-large-zh` | `https://qianfan.baidubce.com/v2` | 1024 |
+| `volcengine` | 火山引擎豆包 | `doubao-embedding-vision-251215` | `https://ark.cn-beijing.volces.com/api/v3` | 1024（多模态端点） |
+| `jina` | Jina AI | `jina-embeddings-v5-text-small` | `https://api.jina.ai/v1` | 1024（带 `dimensions` 参数） |
+| `custom` | 自定义 OpenAI 兼容 | 必填 | 必填 | 自定 |
+
+> ⚠️ **关键约束**：检索端 embedding 厂商和模型**必须**与 Chrome 扩展写入端完全一致。不同模型的向量空间不互通，即使维度相同也会导致检索结果错乱。如果扩展里用的是智谱，这里也要填 `zhipu`；扩展里用豆包，这里也要填 `volcengine`。
 
 ## 用法
 
@@ -114,6 +141,8 @@ JSON 数组，按相似度从高到低排序：
 {
   "backend": "chroma",
   "collection": "ai_chat_vectors",
+  "embedding_provider": "dashscope",
+  "embedding_provider_name": "阿里云百炼 DashScope",
   "embedding_model": "text-embedding-v4",
   "embedding_dim": 1024,
   "count": 1234

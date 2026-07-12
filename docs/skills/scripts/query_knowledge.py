@@ -12,10 +12,19 @@ AI 对话知识库检索脚本（SKILL 配套工具）
     KB_VSTORE_URL      向量库地址
     KB_VSTORE_COLLECTION  集合/表名（默认 ai_chat_vectors）
     KB_VSTORE_API_KEY  向量库 API Key（Supabase/Milvus Zilliz 需要，ChromaDB 本地部署不需要）
-    KB_DASHSCOPE_KEY   DashScope API Key（用于生成查询 embedding）
+
+    KB_EMBEDDING_PROVIDER  Embedding 厂商（dashscope/zhipu/baidu/volcengine/jina/custom）
+                           必须与 Chrome 扩展写入端配置一致，否则向量空间不匹配
+    KB_EMBEDDING_API_KEY   Embedding 厂商 API Key（与 Chrome 扩展用同一个）
+    KB_EMBEDDING_MODEL     模型 ID（须与扩展配置一致；预设厂商有默认值）
+    KB_EMBEDDING_BASE_URL  厂商 baseUrl（预设厂商可留空，custom 必填）
 
   可选：
     KB_VSTORE_VERIFY_TLS  true/false（默认 false，自签证书时跳过校验）
+    KB_EMBEDDING_DIM      期望维度（默认 1024，与向量库 schema 匹配）
+
+  兼容字段：
+    KB_DASHSCOPE_KEY      旧字段，等价于 KB_EMBEDDING_API_KEY（provider=dashscope 时）
 """
 
 import argparse
@@ -30,6 +39,51 @@ import urllib.parse
 # ============================================================
 # 配置加载
 # ============================================================
+
+# Embedding 厂商预设（与插件 models.json 保持一致）
+# backend 取值：
+#   dashscope          - 阿里云原生 API（独立端点，input.texts + parameters.text_type）
+#   openai             - OpenAI 兼容 /embeddings（智谱/百度/Jina）
+#   openai-multimodal  - 多模态端点 /embeddings/multimodal（豆包 vision）
+# dimensionsParam=true 时请求体带 dimensions 参数，强制模型输出指定维度
+EMBEDDING_PROVIDERS = {
+    "dashscope": {
+        "name": "阿里云百炼 DashScope",
+        "backend": "dashscope",
+        "base_url": "https://dashscope.aliyuncs.com/api/v1",
+        "default_model": "text-embedding-v4",
+        "dimensions_param": False,
+    },
+    "zhipu": {
+        "name": "智谱 AI (BigModel)",
+        "backend": "openai",
+        "base_url": "https://open.bigmodel.cn/api/paas/v4",
+        "default_model": "embedding-3",
+        "dimensions_param": True,
+    },
+    "baidu": {
+        "name": "百度千帆",
+        "backend": "openai",
+        "base_url": "https://qianfan.baidubce.com/v2",
+        "default_model": "bge-large-zh",
+        "dimensions_param": False,
+    },
+    "volcengine": {
+        "name": "火山引擎豆包",
+        "backend": "openai-multimodal",
+        "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+        "default_model": "doubao-embedding-vision-251215",
+        "dimensions_param": True,
+    },
+    "jina": {
+        "name": "Jina AI",
+        "backend": "openai",
+        "base_url": "https://api.jina.ai/v1",
+        "default_model": "jina-embeddings-v5-text-small",
+        "dimensions_param": True,
+    },
+}
+
 
 def load_config():
     """从环境变量或 .env 文件加载配置（.env 在脚本同目录或父目录）"""
@@ -48,11 +102,44 @@ def load_config():
                         os.environ.setdefault(key.strip(), val.strip())
             break
 
-    required = ["KB_VSTORE_TYPE", "KB_VSTORE_URL", "KB_DASHSCOPE_KEY"]
+    required = ["KB_VSTORE_TYPE", "KB_VSTORE_URL"]
     missing = [k for k in required if not os.environ.get(k)]
     if missing:
         print(f"错误：缺少环境变量 {missing}", file=sys.stderr)
         print(f"请在 SKILL 目录下创建 .env 文件，配置见 SKILL.md", file=sys.stderr)
+        sys.exit(1)
+
+    # Embedding 厂商：默认 dashscope（向后兼容旧配置）
+    provider_id = os.environ.get("KB_EMBEDDING_PROVIDER", "dashscope").lower()
+    provider = EMBEDDING_PROVIDERS.get(provider_id)
+
+    if not provider:
+        # 未知预设视为自定义厂商，走 OpenAI 兼容后端
+        provider = {
+            "name": f"自定义 ({provider_id})",
+            "backend": "openai",
+            "base_url": "",
+            "default_model": "",
+            "dimensions_param": False,
+        }
+
+    # API Key：KB_EMBEDDING_API_KEY 优先，回退 KB_DASHSCOPE_KEY（向后兼容）
+    api_key = os.environ.get("KB_EMBEDDING_API_KEY") or os.environ.get("KB_DASHSCOPE_KEY", "")
+    if not api_key:
+        print("错误：缺少 KB_EMBEDDING_API_KEY（或旧字段 KB_DASHSCOPE_KEY）", file=sys.stderr)
+        print("请在 .env 中配置 Embedding 厂商的 API Key", file=sys.stderr)
+        sys.exit(1)
+
+    # baseUrl：用户自定义优先，否则用预设
+    base_url = os.environ.get("KB_EMBEDDING_BASE_URL", "").strip() or provider["base_url"]
+    if not base_url:
+        print(f"错误：厂商 {provider_id} 无预设 baseUrl，请在 .env 中设置 KB_EMBEDDING_BASE_URL", file=sys.stderr)
+        sys.exit(1)
+
+    # 模型：用户配置优先，否则用预设默认
+    model = os.environ.get("KB_EMBEDDING_MODEL", "").strip() or provider["default_model"]
+    if not model:
+        print(f"错误：厂商 {provider_id} 无默认模型，请在 .env 中设置 KB_EMBEDDING_MODEL", file=sys.stderr)
         sys.exit(1)
 
     return {
@@ -60,10 +147,16 @@ def load_config():
         "vstore_url": os.environ["KB_VSTORE_URL"].rstrip("/"),
         "vstore_collection": os.environ.get("KB_VSTORE_COLLECTION", "ai_chat_vectors"),
         "vstore_api_key": os.environ.get("KB_VSTORE_API_KEY", ""),
-        "dashscope_key": os.environ["KB_DASHSCOPE_KEY"],
         "verify_tls": os.environ.get("KB_VSTORE_VERIFY_TLS", "false").lower() == "true",
-        "embedding_model": os.environ.get("KB_EMBEDDING_MODEL", "text-embedding-v4"),
+        # Embedding 配置
+        "embedding_provider": provider_id,
+        "embedding_provider_name": provider["name"],
+        "embedding_backend": provider["backend"],
+        "embedding_base_url": base_url.rstrip("/"),
+        "embedding_api_key": api_key,
+        "embedding_model": model,
         "embedding_dim": int(os.environ.get("KB_EMBEDDING_DIM", "1024")),
+        "embedding_dimensions_param": provider["dimensions_param"],
     }
 
 
@@ -71,33 +164,133 @@ def load_config():
 # Embedding 生成
 # ============================================================
 
-def embed_query(query: str, cfg: dict) -> list:
-    """调 DashScope 生成查询向量（text_type='query'，与写入时的 'document' 配对）"""
-    url = "https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding"
-    body = json.dumps({
-        "model": cfg["embedding_model"],
-        "input": {"texts": [query]},
-        "parameters": {"text_type": "query"}
-    }).encode()
+def _make_ssl_ctx(cfg: dict):
+    """构造 SSL 上下文（verify_tls=false 时跳过证书校验）"""
+    import ssl
+    ctx = ssl.create_default_context()
+    if not cfg["verify_tls"]:
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    return ctx
 
-    req = urllib.request.Request(url, data=body, headers={
-        "Authorization": f"Bearer {cfg['dashscope_key']}",
-        "Content-Type": "application/json"
+
+def _http_post_json(url: str, body: dict, headers: dict, cfg: dict):
+    """通用 POST JSON 请求（带 SSL 配置）"""
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(url, data=data, headers={
+        "Content-Type": "application/json",
+        **headers,
     })
-
+    ctx = _make_ssl_ctx(cfg)
     try:
-        import ssl
-        ctx = ssl.create_default_context()
-        if not cfg["verify_tls"]:
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
         resp = urllib.request.urlopen(req, context=ctx)
-        result = json.loads(resp.read())
-        return result["output"]["embeddings"][0]["embedding"]
+        return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         err_body = e.read().decode() if e.fp else ""
-        print(f"错误：DashScope API 调用失败 HTTP {e.code}: {err_body}", file=sys.stderr)
+        print(f"错误：Embedding API 调用失败 HTTP {e.code}: {err_body}", file=sys.stderr)
         sys.exit(1)
+
+
+def _embed_dashscope(query: str, cfg: dict) -> list:
+    """DashScope 原生 API：input.texts + parameters.text_type=query（与写入端 document 配对）"""
+    url = f"{cfg['embedding_base_url']}/services/embeddings/text-embedding/text-embedding"
+    body = {
+        "model": cfg["embedding_model"],
+        "input": {"texts": [query]},
+        "parameters": {"text_type": "query"},
+    }
+    result = _http_post_json(url, body, {
+        "Authorization": f"Bearer {cfg['embedding_api_key']}",
+    }, cfg)
+    try:
+        return result["output"]["embeddings"][0]["embedding"]
+    except (KeyError, IndexError, TypeError):
+        print(f"错误：DashScope 返回异常: {json.dumps(result, ensure_ascii=False)}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _embed_openai(query: str, cfg: dict) -> list:
+    """OpenAI 兼容 /embeddings 端点（智谱/百度/Jina 等）。
+    baseUrl 已含版本前缀（/v1、/v4、/v2 等），直接拼 /embeddings。
+    dimensionsParam=true 时带 dimensions 参数强制输出指定维度。
+    """
+    base = cfg["embedding_base_url"]
+    url = f"{base}/embeddings" if base.endswith(("/v1", "/v2", "/v3", "/v4")) else f"{base}/v1/embeddings"
+    body = {
+        "model": cfg["embedding_model"],
+        "input": query,
+    }
+    if cfg["embedding_dimensions_param"]:
+        body["dimensions"] = cfg["embedding_dim"]
+    result = _http_post_json(url, body, {
+        "Authorization": f"Bearer {cfg['embedding_api_key']}",
+    }, cfg)
+    if result.get("error"):
+        print(f"错误：Embedding API 返回错误: {json.dumps(result['error'], ensure_ascii=False)}", file=sys.stderr)
+        sys.exit(1)
+    # 兼容两种返回结构：data[0].embedding（标准）或 data.embedding（部分厂商）
+    data = result.get("data", [])
+    if isinstance(data, list) and data and "embedding" in data[0]:
+        vec = data[0]["embedding"]
+    elif isinstance(data, dict) and "embedding" in data:
+        vec = data["embedding"]
+    else:
+        print(f"错误：Embedding 返回异常: {json.dumps(result, ensure_ascii=False)}", file=sys.stderr)
+        sys.exit(1)
+    _check_dimension(vec, cfg)
+    return vec
+
+
+def _embed_openai_multimodal(query: str, cfg: dict) -> list:
+    """多模态 Embedding 端点 /embeddings/multimodal（豆包 vision）。
+    请求格式：input 为对象数组 [{type:"text", text:"..."}]，必带 encoding_format:"float"。
+    """
+    base = cfg["embedding_base_url"]
+    url = f"{base}/embeddings/multimodal" if base.endswith(("/v1", "/v2", "/v3", "/v4")) else f"{base}/v1/embeddings/multimodal"
+    body = {
+        "model": cfg["embedding_model"],
+        "input": [{"type": "text", "text": query}],
+        "encoding_format": "float",
+    }
+    if cfg["embedding_dimensions_param"]:
+        body["dimensions"] = cfg["embedding_dim"]
+    result = _http_post_json(url, body, {
+        "Authorization": f"Bearer {cfg['embedding_api_key']}",
+    }, cfg)
+    if result.get("error"):
+        print(f"错误：Embedding API 返回错误: {json.dumps(result['error'], ensure_ascii=False)}", file=sys.stderr)
+        sys.exit(1)
+    # 豆包 multimodal 返回 data.embedding（对象），标准 OpenAI 返回 data[0].embedding（数组）
+    data = result.get("data", [])
+    if isinstance(data, list) and data and "embedding" in data[0]:
+        vec = data[0]["embedding"]
+    elif isinstance(data, dict) and "embedding" in data:
+        vec = data["embedding"]
+    else:
+        print(f"错误：Embedding 返回异常: {json.dumps(result, ensure_ascii=False)}", file=sys.stderr)
+        sys.exit(1)
+    _check_dimension(vec, cfg)
+    return vec
+
+
+def _check_dimension(vec: list, cfg: dict):
+    """维度校验：与向量库固定 schema 匹配，不一致直接报错（避免检索结果全错）"""
+    if len(vec) != cfg["embedding_dim"]:
+        print(f"错误：向量维度不匹配: 期望 {cfg['embedding_dim']}, 实际 {len(vec)}"
+              f"（模型: {cfg['embedding_model']}）", file=sys.stderr)
+        print("请检查 KB_EMBEDDING_DIM 或更换与向量库 schema 匹配的模型", file=sys.stderr)
+        sys.exit(1)
+
+
+def embed_query(query: str, cfg: dict) -> list:
+    """按 embedding_backend 分发到对应厂商的实现"""
+    backend = cfg["embedding_backend"]
+    if backend == "dashscope":
+        return _embed_dashscope(query, cfg)
+    if backend == "openai-multimodal":
+        return _embed_openai_multimodal(query, cfg)
+    # 默认 OpenAI 兼容
+    return _embed_openai(query, cfg)
 
 
 # ============================================================
@@ -414,6 +607,8 @@ def get_stats(cfg):
     return {
         "backend": cfg["vstore_type"],
         "collection": cfg["vstore_collection"],
+        "embedding_provider": cfg["embedding_provider"],
+        "embedding_provider_name": cfg["embedding_provider_name"],
         "embedding_model": cfg["embedding_model"],
         "embedding_dim": cfg["embedding_dim"],
         "count": count
