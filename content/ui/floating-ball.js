@@ -54,10 +54,6 @@ class FloatingBall {
         <button id="acc-search-btn">搜索</button>
       </div>
       <div class="panel-toolbar">
-        <div class="mode-switch">
-          <button id="acc-mode-network" class="active" title="网络拦截模式">网络</button>
-          <button id="acc-mode-dom" title="DOM提取模式">DOM</button>
-        </div>
         <select id="acc-platform-filter">
           <option value="">全部平台</option>
         </select>
@@ -82,10 +78,6 @@ class FloatingBall {
     this.panel.querySelector('#acc-export-all').addEventListener('click', () => this.exportAll());
     this.panel.querySelector('#acc-platform-filter').addEventListener('change', () => this.loadConversations());
     
-    // 模式切换
-    this.panel.querySelector('#acc-mode-network').addEventListener('click', () => this.switchMode('network'));
-    this.panel.querySelector('#acc-mode-dom').addEventListener('click', () => this.switchMode('dom'));
-    
     // 搜索
     this.panel.querySelector('#acc-search-btn').addEventListener('click', () => this.handleSearch());
     this.panel.querySelector('#acc-search-input').addEventListener('keydown', (e) => {
@@ -97,9 +89,6 @@ class FloatingBall {
         this.loadConversations();
       }
     });
-    
-    // 同步当前模式
-    this.syncModeButtons();
   }
 
   onMouseDown(e) {
@@ -371,38 +360,10 @@ class FloatingBall {
     return div.innerHTML;
   }
   
-  // ===== 模式切换 =====
-  syncModeButtons() {
-    const currentMode = this.collector.mode;
-    const btnNetwork = this.panel.querySelector('#acc-mode-network');
-    const btnDom = this.panel.querySelector('#acc-mode-dom');
-    if (btnNetwork) btnNetwork.classList.toggle('active', currentMode === 'network');
-    if (btnDom) btnDom.classList.toggle('active', currentMode === 'dom');
-  }
-  
+  // ===== 搜索 =====
   handleSearch() {
     const input = this.panel.querySelector('#acc-search-input');
     this.searchQuery = input.value.trim();
     this.loadConversations();
-  }
-
-  switchMode(mode) {
-    if (this.collector.mode === mode) return;
-    
-    const platformName = this.collector.platformName;
-    const storageKey = `${platformName}-export-mode`;
-    
-    // 保存到 localStorage
-    localStorage.setItem(storageKey, mode);
-    
-    // 提示用户需要刷新
-    const modeLabel = mode === 'network' ? '网络拦截' : 'DOM提取';
-    if (confirm(`切换到${modeLabel}模式，需要刷新页面才能生效。是否立即刷新？（建议使用网络拦截模式）`)) {
-      location.reload();
-    } else {
-      // 用户取消刷新，仍更新按钮状态
-      this.collector.mode = mode;
-      this.syncModeButtons();
-    }
   }
 }

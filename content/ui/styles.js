@@ -244,29 +244,6 @@ const AIChatStyles = {
       #ai-chat-panel .panel-toolbar .btn-primary:hover {
         background: #1d4ed8;
       }
-      #ai-chat-panel .mode-switch {
-        display: flex;
-        gap: 0;
-        border: 1px solid #e0e0e0;
-        border-radius: 6px;
-        overflow: hidden;
-      }
-      #ai-chat-panel .mode-switch button {
-        padding: 5px 8px;
-        border: none;
-        font-size: 11px;
-        cursor: pointer;
-        background: #fff;
-        color: #374151;
-        transition: background 0.15s;
-      }
-      #ai-chat-panel .mode-switch button.active {
-        background: #2563eb;
-        color: #fff;
-      }
-      #ai-chat-panel .mode-switch button:hover:not(.active) {
-        background: #f3f4f6;
-      }
       #ai-chat-panel .conv-list {
         flex: 1;
         overflow-y: auto;

@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const platformQianwen = document.getElementById('platformQianwen');
   const platformFudan = document.getElementById('platformFudan');
   const platformDoubao = document.getElementById('platformDoubao');
+  const platformKimi = document.getElementById('platformKimi');
 
   const embeddingProvider = document.getElementById('embeddingProvider');
   const embeddingKeyLabel = document.getElementById('embeddingKeyLabel');
@@ -74,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
       platformQianwen: platformQianwen.checked,
       platformFudan: platformFudan.checked,
       platformDoubao: platformDoubao.checked,
+      platformKimi: platformKimi.checked,
       embeddingProvider: embeddingProvider.value,
       embeddingModel: embeddingModel.value,
       dashscopeEmbeddingKey: dashscopeEmbeddingKey.value,
@@ -607,6 +609,21 @@ document.addEventListener('DOMContentLoaded', () => {
       platformQianwen.checked = platformResp.qianwen === true;
       platformFudan.checked = platformResp.fudan !== false;
       platformDoubao.checked = platformResp.doubao === true;
+      platformKimi.checked = platformResp.kimi === true;
+    }
+
+    // 平台提取模式（网络拦截 / DOM提取）
+    const modeResp = await sendMessage({ type: 'GET_SETTINGS', category: 'platformModes' });
+    if (modeResp) {
+      const setMode = (platform, mode) => {
+        const radio = document.querySelector(`input[name="${platform}-mode"][value="${mode}"]`);
+        if (radio) radio.checked = true;
+      };
+      setMode('deepseek', modeResp.deepseek || 'network');
+      setMode('qianwen', modeResp.qianwen || 'network');
+      setMode('fudan', modeResp.fudan || 'network');
+      setMode('doubao', modeResp.doubao || 'network');
+      // Kimi 固定 DOM，无 radio 可设
     }
 
     // Embedding 设置
@@ -721,7 +738,25 @@ document.addEventListener('DOMContentLoaded', () => {
         deepseek: platformDeepseek.checked,
         qianwen: platformQianwen.checked,
         fudan: platformFudan.checked,
-        doubao: platformDoubao.checked
+        doubao: platformDoubao.checked,
+        kimi: platformKimi.checked
+      }
+    });
+
+    // 平台提取模式（网络拦截 / DOM提取）
+    const getMode = (platform) => {
+      const radio = document.querySelector(`input[name="${platform}-mode"]:checked`);
+      return radio ? radio.value : 'network';
+    };
+    await sendMessage({
+      type: 'SAVE_SETTINGS',
+      category: 'platformModes',
+      settings: {
+        deepseek: getMode('deepseek'),
+        qianwen: getMode('qianwen'),
+        fudan: getMode('fudan'),
+        doubao: getMode('doubao'),
+        kimi: 'dom'
       }
     });
 
@@ -816,6 +851,7 @@ document.addEventListener('DOMContentLoaded', () => {
           : `；索引重建失败: ${vectorSaveExtra.rebuilt.error || '未知错误'}`;
       }
     }
+    toastMsg += '；更改需刷新已打开的 AI 平台网页才会生效';
     showToast(toastMsg);
     vectorSaveExtra = null;
 
@@ -1103,7 +1139,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toast.className = `toast show ${isError ? 'error' : 'success'}`;
     setTimeout(() => {
       toast.className = 'toast';
-    }, 3000);
+    }, 4500);
   }
 
   // ---- 存储位置信息相关 ----

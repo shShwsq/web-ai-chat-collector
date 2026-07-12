@@ -11,7 +11,7 @@
     return;
   }
 
-  const savedMode = localStorage.getItem('fudan-export-mode') || EXTRACTION_MODE.NETWORK;
+  const savedMode = await getPlatformMode('fudan');
   const exporter = new ChatExporterBase('fudan', savedMode);
 
   // AI 问答悬浮球

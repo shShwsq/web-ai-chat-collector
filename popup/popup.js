@@ -6,8 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const exportAllBtn = document.getElementById('exportAllBtn');
   const refreshBtn = document.getElementById('refreshBtn');
   const statusEl = document.getElementById('status');
-  const modeNetworkBtn = document.getElementById('modeNetwork');
-  const modeDomBtn = document.getElementById('modeDom');
   const viewerOverlay = document.getElementById('viewerOverlay');
   const viewerTitle = document.getElementById('viewerTitle');
   const viewerBody = document.getElementById('viewerBody');
@@ -16,8 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const searchBtn = document.getElementById('searchBtn');
   const settingsBtn = document.getElementById('settingsBtn');
 
-  // 当前模式
-  let currentMode = 'network';
   // 当前搜索关键词
   let currentSearchQuery = '';
 
@@ -38,10 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.href = 'settings.html';
   });
 
-  // 模式切换
-  modeNetworkBtn.addEventListener('click', () => switchMode('network'));
-  modeDomBtn.addEventListener('click', () => switchMode('dom'));
-
   // 搜索
   searchBtn.addEventListener('click', handleSearch);
   searchInput.addEventListener('keydown', (e) => {
@@ -60,62 +52,6 @@ document.addEventListener('DOMContentLoaded', () => {
   viewerOverlay.addEventListener('click', (e) => {
     if (e.target === viewerOverlay) closeViewer();
   });
-
-  // 从所有标签页的 localStorage 读取当前模式
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs[0]) {
-      chrome.scripting.executeScript({
-        target: { tabId: tabs[0].id },
-        func: () => {
-          // 尝试读取当前平台的模式
-          const host = location.hostname;
-          let platform = '';
-          if (host.includes('deepseek')) platform = 'deepseek';
-          else if (host.includes('qianwen')) platform = 'qianwen';
-          const key = `${platform}-export-mode`;
-          return localStorage.getItem(key) || 'network';
-        }
-      }, (results) => {
-        if (results && results[0] && results[0].result) {
-          currentMode = results[0].result;
-          syncModeButtons();
-        }
-      });
-    }
-  });
-
-  function switchMode(mode) {
-    if (currentMode === mode) return;
-    currentMode = mode;
-    syncModeButtons();
-
-    // 通知当前标签页切换模式
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        chrome.scripting.executeScript({
-          target: { tabId: tabs[0].id },
-          func: (m) => {
-            const host = location.hostname;
-            let platform = '';
-            if (host.includes('deepseek')) platform = 'deepseek';
-            else if (host.includes('qianwen')) platform = 'qianwen';
-            const key = `${platform}-export-mode`;
-            localStorage.setItem(key, m);
-            const modeLabel = m === 'network' ? '网络拦截' : 'DOM提取';
-            if (confirm(`切换到${modeLabel}模式，需要刷新页面才能生效。是否立即刷新？（建议使用网络拦截模式）`)) {
-              location.reload();
-            }
-          },
-          args: [mode]
-        });
-      }
-    });
-  }
-
-  function syncModeButtons() {
-    modeNetworkBtn.classList.toggle('active', currentMode === 'network');
-    modeDomBtn.classList.toggle('active', currentMode === 'dom');
-  }
 
   async function loadStatus() {
     const response = await sendMessage({ type: 'GET_STATUS' });

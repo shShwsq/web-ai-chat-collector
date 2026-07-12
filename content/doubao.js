@@ -11,7 +11,7 @@
     return;
   }
 
-  const savedMode = localStorage.getItem('doubao-export-mode') || EXTRACTION_MODE.NETWORK;
+  const savedMode = await getPlatformMode('doubao');
   const exporter = new ChatExporterBase('doubao', savedMode);
 
   // AI 问答悬浮球

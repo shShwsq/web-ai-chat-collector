@@ -12,7 +12,7 @@
     return;
   }
 
-  const savedMode = localStorage.getItem('deepseek-export-mode') || EXTRACTION_MODE.NETWORK;
+  const savedMode = await getPlatformMode('deepseek');
   const exporter = new ChatExporterBase('deepseek', savedMode);
 
   // AI 问答悬浮球

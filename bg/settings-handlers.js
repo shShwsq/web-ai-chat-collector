@@ -15,6 +15,8 @@ async function handleGetSettings(category) {
         return await getLLMSettings();
       case 'platforms':
         return await getPlatformSettings();
+      case 'platformModes':
+        return await getPlatformModes();
       default:
         return { error: '未知设置类别' };
     }
@@ -99,6 +101,9 @@ async function handleSaveSettings(category, settings) {
       case 'platforms':
         await savePlatformSettings(settings);
         break;
+      case 'platformModes':
+        await savePlatformModes(settings);
+        break;
     }
     return { success: true, ...extraResult };
   } catch (e) {
@@ -118,6 +123,29 @@ async function getPlatformSettings() {
 async function savePlatformSettings(settings) {
   return new Promise((resolve) => {
     chrome.storage.local.set({ platformSettings: settings }, resolve);
+  });
+}
+
+// 平台提取模式（网络拦截 / DOM提取）
+const DEFAULT_PLATFORM_MODES = {
+  deepseek: 'network',
+  qianwen: 'network',
+  fudan: 'network',
+  doubao: 'network',
+  kimi: 'dom'  // Kimi 使用 WS + protobuf，仅支持 DOM
+};
+
+async function getPlatformModes() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get('platformModes', (result) => {
+      resolve({ ...DEFAULT_PLATFORM_MODES, ...(result?.platformModes || {}) });
+    });
+  });
+}
+
+async function savePlatformModes(settings) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ platformModes: settings }, resolve);
   });
 }
 

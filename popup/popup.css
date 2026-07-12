@@ -91,34 +91,6 @@ header h1 {
   color: #9ca3af;
 }
 
-.mode-switch {
-  display: flex;
-  gap: 0;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.mode-switch button {
-  padding: 5px 8px;
-  border: none;
-  font-size: 11px;
-  cursor: pointer;
-  background: #fff;
-  color: #374151;
-  transition: background 0.15s;
-}
-
-.mode-switch button.active {
-  background: #2563eb;
-  color: #fff;
-}
-
-.mode-switch button:hover:not(.active) {
-  background: #f3f4f6;
-}
-
 .toolbar select {
   flex: 1;
   padding: 5px 8px;

@@ -40,3 +40,15 @@ async function isPlatformEnabled(platformName) {
     }
   });
 }
+
+// 读取指定平台的提取模式（由 content script 在初始化时调用）
+// 默认值表只在 bg/settings-handlers.js 维护一份，content script 通过消息向 bg 查询
+function getPlatformMode(platformName) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: 'GET_SETTINGS', category: 'platformModes' }, (response) => {
+      if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+      if (!response || response.error) return reject(new Error(response?.error || '未知错误'));
+      resolve(response[platformName] || EXTRACTION_MODE.NETWORK);
+    });
+  });
+}

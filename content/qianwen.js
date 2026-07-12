@@ -11,7 +11,7 @@
     return;
   }
 
-  const savedMode = localStorage.getItem('qianwen-export-mode') || EXTRACTION_MODE.NETWORK;
+  const savedMode = await getPlatformMode('qianwen');
   const exporter = new ChatExporterBase('qianwen', savedMode);
 
   // AI 问答悬浮球
