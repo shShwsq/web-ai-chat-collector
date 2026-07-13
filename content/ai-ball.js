@@ -1202,6 +1202,18 @@ class AIBall {
 
     document.body.appendChild(this.panel);
 
+    // 事件委托：点击 .collapsible-header 切换折叠（思考过程 / 搜索来源）
+    // 不能用内联 onclick：宿主页 CSP 收紧后会失效；且内容频繁重建时委托更稳
+    this.panel.addEventListener('click', (e) => {
+      const header = e.target.closest('.collapsible-header');
+      if (!header) return;
+      header.classList.toggle('collapsed');
+      const bodyEl = header.nextElementSibling;
+      if (bodyEl && bodyEl.classList.contains('collapsible-body')) {
+        bodyEl.classList.toggle('collapsed');
+      }
+    });
+
     // 面板拖拽（通过 header 拖动）
     makeDraggable(this.panel, this.panel.querySelector('.qa-header'));
 
@@ -1875,9 +1887,9 @@ class AIBall {
         inner = this._escapeHtml(block.content).replace(/\n/g, '<br>');
       }
       if (block.type === 'think') {
-        return `<div class="think-block"><div class="collapsible-header collapsed" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('collapsed')"><span class="arrow">▼</span>思考过程</div><div class="collapsible-body collapsed">${inner}</div></div>`;
+        return `<div class="think-block"><div class="collapsible-header collapsed"><span class="arrow">▼</span>思考过程</div><div class="collapsible-body collapsed">${inner}</div></div>`;
       } else if (block.type === 'search') {
-        return `<div class="search-block"><div class="collapsible-header collapsed" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('collapsed')"><span class="arrow">▼</span>搜索来源</div><div class="collapsible-body collapsed">${inner}</div></div>`;
+        return `<div class="search-block"><div class="collapsible-header collapsed"><span class="arrow">▼</span>搜索来源</div><div class="collapsible-body collapsed">${inner}</div></div>`;
       }
       return inner;
     });

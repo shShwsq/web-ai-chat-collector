@@ -53,6 +53,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === viewerOverlay) closeViewer();
   });
 
+  // 事件委托：点击 .collapsible-header 切换折叠（思考过程 / 搜索来源）
+  // 注意：不能用内联 onclick，Manifest V3 的 CSP 禁止内联事件处理器
+  viewerBody.addEventListener('click', (e) => {
+    const header = e.target.closest('.collapsible-header');
+    if (!header) return;
+    header.classList.toggle('collapsed');
+    const body = header.nextElementSibling;
+    if (body && body.classList.contains('collapsible-body')) {
+      body.classList.toggle('collapsed');
+    }
+  });
+
   async function loadStatus() {
     const response = await sendMessage({ type: 'GET_STATUS' });
     if (response) {
@@ -294,9 +306,9 @@ document.addEventListener('DOMContentLoaded', () => {
         inner = escapeHtml(block.content).replace(/\n/g, '<br>');
       }
       if (block.type === 'think') {
-        return `<div class="think-block"><div class="collapsible-header collapsed" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('collapsed')"><span class="arrow">▼</span>思考过程</div><div class="collapsible-body collapsed">${inner}</div></div>`;
+        return `<div class="think-block"><div class="collapsible-header collapsed"><span class="arrow">▼</span>思考过程</div><div class="collapsible-body collapsed">${inner}</div></div>`;
       } else if (block.type === 'search') {
-        return `<div class="search-block"><div class="collapsible-header collapsed" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('collapsed')"><span class="arrow">▼</span>搜索来源</div><div class="collapsible-body collapsed">${inner}</div></div>`;
+        return `<div class="search-block"><div class="collapsible-header collapsed"><span class="arrow">▼</span>搜索来源</div><div class="collapsible-body collapsed">${inner}</div></div>`;
       }
       return inner;
     });

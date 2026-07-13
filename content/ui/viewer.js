@@ -42,6 +42,18 @@ class ConversationViewer {
     document.body.appendChild(this.viewer);
     this.viewer.querySelector('.close-btn').addEventListener('click', () => this.close());
 
+    // 事件委托：点击 .collapsible-header 切换折叠（思考过程 / 搜索来源）
+    // 不能用内联 onclick：宿主页 CSP 收紧后会失效
+    this.viewer.querySelector('#acc-viewer-body').addEventListener('click', (e) => {
+      const header = e.target.closest('.collapsible-header');
+      if (!header) return;
+      header.classList.toggle('collapsed');
+      const bodyEl = header.nextElementSibling;
+      if (bodyEl && bodyEl.classList.contains('collapsible-body')) {
+        bodyEl.classList.toggle('collapsed');
+      }
+    });
+
     // 弹窗拖拽（通过 header 拖动）
     const viewerBox = this.viewer.querySelector('.viewer-box');
     makeDraggable(viewerBox, this.viewer.querySelector('.viewer-header'));
@@ -139,9 +151,9 @@ class ConversationViewer {
         inner = this.escapeHtml(block.content).replace(/\n/g, '<br>');
       }
       if (block.type === 'think') {
-        return `<div class="think-block"><div class="collapsible-header collapsed" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('collapsed')"><span class="arrow">▼</span>思考过程</div><div class="collapsible-body collapsed">${inner}</div></div>`;
+        return `<div class="think-block"><div class="collapsible-header collapsed"><span class="arrow">▼</span>思考过程</div><div class="collapsible-body collapsed">${inner}</div></div>`;
       } else if (block.type === 'search') {
-        return `<div class="search-block"><div class="collapsible-header collapsed" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('collapsed')"><span class="arrow">▼</span>搜索来源</div><div class="collapsible-body collapsed">${inner}</div></div>`;
+        return `<div class="search-block"><div class="collapsible-header collapsed"><span class="arrow">▼</span>搜索来源</div><div class="collapsible-body collapsed">${inner}</div></div>`;
       }
       return inner;
     });
