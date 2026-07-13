@@ -284,7 +284,13 @@ class FloatingBall {
                 console.log('[FloatingBall/Debug] 当前正在查看被删除的对话，立即触发重新采集');
                 this.collector._deletedConvIds.delete(platformConvId);
                 this.collector.capturedHashes.clear();
-                this.collector.requestConversationData(platformConvId);
+                // 按模式分流：网络模式主动请求 API，DOM 模式走 DOM 提取
+                // Kimi 等仅 DOM 模式的平台无网络适配器，调用 requestConversationData 会失败
+                if (this.collector.mode === EXTRACTION_MODE.NETWORK) {
+                  this.collector.requestConversationData(platformConvId);
+                } else {
+                  this.collector.captureCurrentConversation();
+                }
               }
               this.loadConversations();
             }

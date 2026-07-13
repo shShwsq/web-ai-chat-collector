@@ -87,6 +87,139 @@
     }
   });
 
+  // 自定义规则：DeepSeek 代码块
+  // 结构：<div class="md-code-block"><div class="md-code-block-banner-wrap">...<span>bash</span>...复制/下载按钮...</div><pre>code</pre></div>
+  // 问题：turndown 默认 codeBlock 规则不提取语言（语言在 banner 而非 <code class="language-xxx">），
+  //       且 banner 中"复制""下载"按钮文字（<div role="button">，非 <button>）会泄漏到代码内容前
+  // 方案：匹配 md-code-block 容器，从 banner 提取语言，从 <pre> 提取代码，输出带语言的围栏代码块
+  turndownService.addRule('deepseekCodeBlock', {
+    filter: function (node) {
+      return node.nodeName === 'DIV' &&
+             node.getAttribute('class') &&
+             /\bmd-code-block\b/.test(node.getAttribute('class'));
+    },
+    replacement: function (content, node) {
+      // 语言标记在 banner 内第一个 span（如 <span class="d813de27">bash</span>）
+      var lang = '';
+      var banner = node.querySelector('.md-code-block-banner-wrap');
+      if (banner) {
+        var langSpan = banner.querySelector('span');
+        if (langSpan) {
+          lang = langSpan.textContent.trim();
+        }
+      }
+      // 代码在 <pre> 内（PrismJS token span 的 textContent 即原始代码）
+      var pre = node.querySelector('pre');
+      var code = pre ? pre.textContent : '';
+      code = code.replace(/^\n+|\n+$/g, '');
+      return '\n\n```' + lang + '\n' + code + '\n```\n\n';
+    }
+  });
+
+  // 自定义规则：千问代码块
+  // 结构：<div class="qw-md-code">
+  //   <div class="h-[36px]..."><span class="font-medium mr-auto...">python</span><button>编辑/复制/...</button></div>
+  //   <div class="codeHighlighterWrapper-..."><pre><code>...行号 span + token span...</code></pre></div>
+  // </div>
+  // 问题：与 DeepSeek 类似，语言在标题栏 span 而非 <code class="language-xxx">；
+  //       标题栏"编辑"文字会泄漏；行号 span（.react-syntax-highlighter-line-number）会混入代码内容（如 "1print(...)"）
+  // 方案：匹配 qw-md-code 容器，从标题栏 span 提取语言，从 <pre> 克隆并移除行号后提取代码
+  turndownService.addRule('qianwenCodeBlock', {
+    filter: function (node) {
+      return node.nodeName === 'DIV' &&
+             node.getAttribute('class') &&
+             /\bqw-md-code\b/.test(node.getAttribute('class'));
+    },
+    replacement: function (content, node) {
+      // 语言标记在标题栏的 span（class 含 mr-auto，用于将按钮推到右侧，是语言标签的稳定标识）
+      var lang = '';
+      var langSpan = node.querySelector('span.mr-auto, span.font-medium');
+      if (langSpan) {
+        lang = langSpan.textContent.trim();
+      }
+      // 代码在 <pre> 内，需先克隆并移除行号 span，避免行号混入代码内容
+      var pre = node.querySelector('pre');
+      if (!pre) return '\n\n';
+      var preClone = pre.cloneNode(true);
+      preClone.querySelectorAll(
+        '.react-syntax-highlighter-line-number, .linenumber, [class*="linenumber"]'
+      ).forEach(function (n) { n.remove(); });
+      var code = preClone.textContent;
+      code = code.replace(/^\n+|\n+$/g, '');
+      return '\n\n```' + lang + '\n' + code + '\n```\n\n';
+    }
+  });
+
+  // 自定义规则：豆包代码块
+  // 结构：<div class="code-block-element-R6c8c0 ...">
+  //   <div class="code-area-yxsM36 code-area">
+  //     <div class="header-wrapper-Mbk8s6" data-copy-ignore="true">  ← 标题栏（语言标签 + 运行/复制按钮，需整体跳过）
+  //       <div class="header-IAeXdE">
+  //         <div class="title-TXcgFG"><div class="text-OkYU_0">bash</div>...</div>
+  //         <div class="action-ysQCxz">运行/复制按钮</div>
+  //       </div>
+  //     </div>
+  //     <div class="content-y8qlFa code-content"><pre class="... language-bash"><code class="language-bash">...</code></pre></div>
+  //   </div>
+  // </div>
+  // 问题：turndown 默认 codeBlock 规则会遍历 <pre> 之前的兄弟节点（.header-wrapper），
+  //       将"bash"语言标签和"运行"按钮文字当作正文段落输出到代码块前
+  // 方案：匹配 code-block-element-* 容器（正则兼容哈希后缀），从 <pre> 提取代码
+  //       语言优先从 <code class="language-xxx"> 提取（标准 PrismJS 约定，无哈希最稳定），
+  //       标题栏文本仅作兜底（class 含哈希可能变化，用 [data-copy-ignore] 定位标题栏更稳健）
+  turndownService.addRule('doubaoCodeBlock', {
+    filter: function (node) {
+      return node.nodeName === 'DIV' &&
+             node.getAttribute('class') &&
+             /\bcode-block-element-\w+\b/.test(node.getAttribute('class'));
+    },
+    replacement: function (content, node) {
+      var pre = node.querySelector('pre');
+      if (!pre) return '\n\n';
+      var code = pre.textContent || '';
+      code = code.replace(/^\n+|\n+$/g, '');
+
+      // 语言提取（优先级：code.language-xxx > pre.language-xxx > 标题栏文本）
+      var lang = '';
+      var codeEl = pre.querySelector('code');
+      if (codeEl) {
+        var m = codeEl.className.match(/language-(\S+)/);
+        if (m) lang = m[1];
+      }
+      if (!lang) {
+        var m2 = pre.className.match(/language-(\S+)/);
+        if (m2) lang = m2[1];
+      }
+      if (!lang) {
+        // 兜底：从标题栏第一个文本节点提取（不依赖具体哈希 class）
+        // 标题栏由 [data-copy-ignore] 标识，其内首个非空文本即语言标签
+        var header = node.querySelector('[data-copy-ignore="true"]');
+        if (header) {
+          var titleEl = header.querySelector('[class*="title"]');
+          if (titleEl) {
+            // 取 title 容器内第一个文本节点的值（排除下拉图标 .icon-*）
+            var langText = '';
+            for (var i = 0; i < titleEl.childNodes.length; i++) {
+              var cn = titleEl.childNodes[i];
+              if (cn.nodeType === 3 && cn.textContent.trim()) { // 文本节点
+                langText = cn.textContent.trim();
+                break;
+              }
+              if (cn.nodeType === 1) { // 元素节点
+                var cls = cn.getAttribute('class') || '';
+                if (/\bicon\b/.test(cls)) continue; // 跳过下拉图标
+                langText = cn.textContent.trim();
+                if (langText) break;
+              }
+            }
+            lang = langText;
+          }
+        }
+      }
+      return '\n\n```' + lang + '\n' + code + '\n```\n\n';
+    }
+  });
+
   // 自定义规则：KaTeX 行内公式
   // 标准结构：<span class="katex"><span class="katex-mathml"><math>...<annotation encoding="application/x-tex">LATEX</annotation></math></span><span class="katex-html">...</span></span>
   // 降级结构（Kimi 等）：仅有 .katex-html，无 <annotation>，调用 KatexHtmlToLatex 反向解析
@@ -164,7 +297,14 @@
     // 千问搜索来源按钮（"N篇来源" + 站点图标，无实际 URL，点击才展开）
     '.reference-wrap-iEjeb3',
     // 千问推荐问题（回答结束后"猜你想问"）
-    '.recommend-query-wrap'
+    '.recommend-query-wrap',
+    // 千问代码块行号（react-syntax-highlighter 行号 span，嵌在 <code> 内每行开头，
+    // 兜底保护：若 qw-md-code 容器结构变化，行号也不会混入代码内容）
+    '.react-syntax-highlighter-line-number',
+    '.linenumber',
+    // Kimi 代码块标题栏（含语言标签 .segment-code-lang 和复制按钮 .kimi-tooltip），
+    // 与 <pre> 分属 .segment-code 下平级的 header 和 content 容器，移除后不影响代码提取
+    '.segment-code-header'
   ];
 
   window.HtmlToMarkdown = {
