@@ -50,17 +50,17 @@ jobs:
           import json
           with open('models.json') as f:
               m = json.load(f)
-          assert 'llm' in m, 'models.json missing llm section'
-          assert 'embedding' in m, 'models.json missing embedding section'
-          assert isinstance(m['llm'], list) and len(m['llm']) > 0, 'llm vendors empty'
-          assert isinstance(m['embedding'], list) and len(m['embedding']) > 0, 'embedding vendors empty'
-          for v in m['llm']:
-              assert v.get('id'), 'llm vendor missing id'
-              assert v.get('models'), f'llm vendor {v.get(\"id\")} missing models'
-          for v in m['embedding']:
-              assert v.get('id'), 'embedding vendor missing id'
-              assert v.get('models'), f'embedding vendor {v.get(\"id\")} missing models'
-          print(f'models.json: {len(m[\"llm\"])} LLM vendors, {len(m[\"embedding\"])} embedding vendors')
+          assert 'llmProviders' in m, 'models.json missing llmProviders section'
+          assert 'embeddingProviders' in m, 'models.json missing embeddingProviders section'
+          assert isinstance(m['llmProviders'], list) and len(m['llmProviders']) > 0, 'llmProviders empty'
+          assert isinstance(m['embeddingProviders'], list) and len(m['embeddingProviders']) > 0, 'embeddingProviders empty'
+          for v in m['llmProviders']:
+              assert v.get('id'), 'llm provider missing id'
+              assert v.get('models'), f'llm provider {v.get(\"id\")} missing models'
+          for v in m['embeddingProviders']:
+              assert v.get('id'), 'embedding provider missing id'
+              assert v.get('models'), f'embedding provider {v.get(\"id\")} missing models'
+          print(f'models.json: {len(m[\"llmProviders\"])} LLM providers, {len(m[\"embeddingProviders\"])} embedding providers')
           "
 
       - name: Check Python skill script syntax
