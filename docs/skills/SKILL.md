@@ -38,7 +38,7 @@ KB_VSTORE_TYPE=chroma
 # pgvector: http://服务器IP:3000  (PostgREST 端口)
 # Supabase: https://xxx.supabase.co
 # Milvus:   http://服务器IP:19530
-KB_VSTORE_URL=http://120.55.168.185:8000
+KB_VSTORE_URL=http://服务器IP:8000
 
 # 集合/表名
 KB_VSTORE_COLLECTION=ai_chat_vectors

@@ -102,7 +102,7 @@ vim .env
 关键字段：
 ```bash
 KB_VSTORE_TYPE=chroma                              # 向量库类型
-KB_VSTORE_URL=http://120.55.168.185:8000           # 向量库地址
+KB_VSTORE_URL=http://服务器IP:8000                 # 向量库地址（示例）
 KB_VSTORE_COLLECTION=ai_chat_vectors               # 集合名
 KB_EMBEDDING_PROVIDER=dashscope                    # Embedding 厂商（须与扩展一致）
 KB_EMBEDDING_API_KEY=sk-你的-api-key               # 厂商 API Key（与扩展同一个）
