@@ -19,7 +19,6 @@ class AIBall {
 
     // 等 DOM 就绪后再创建所有元素
     const init = () => {
-      this.injectStyles();
       this.createBall();
       this.createPanel();
     };
@@ -30,27 +29,27 @@ class AIBall {
     }
   }
 
-  injectStyles() {
-    if (document.getElementById('ai-ball-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'ai-ball-styles';
-    style.textContent = `
-      #ai-qa-ball {
+  // Ball 样式（隔离在 shadow DOM 内，:host 控制定位与层级）
+  _ballCSS() {
+    return `
+      :host {
         position: fixed;
+        z-index: 2147483645;
+        right: 24px;
+        bottom: 80px;
+        cursor: grab;
+      }
+      #ai-qa-ball {
         width: 44px;
         height: 44px;
         border-radius: 50%;
         background: linear-gradient(135deg, #7c3aed, #a855f7);
         box-shadow: 0 2px 12px rgba(124, 58, 237, 0.4);
-        cursor: grab;
-        z-index: 2147483645;
         display: flex;
         align-items: center;
         justify-content: center;
         user-select: none;
         transition: box-shadow 0.2s, transform 0.2s;
-        right: 24px;
-        bottom: 80px;
       }
       #ai-qa-ball:hover {
         box-shadow: 0 4px 20px rgba(124, 58, 237, 0.6);
@@ -76,24 +75,32 @@ class AIBall {
         0%, 100% { opacity: 0.4; transform: scale(0.8); }
         50% { opacity: 1; transform: scale(1.2); }
       }
+    `;
+  }
 
-      #ai-qa-panel {
+  // Panel 样式（隔离在 shadow DOM 内，:host 控制定位与显隐）
+  _panelCSS() {
+    return `
+      :host {
         position: fixed;
+        z-index: 2147483644;
+        display: none;
+      }
+      :host(.open) {
+        display: block;
+      }
+      #ai-qa-panel {
         width: 400px;
         max-height: 560px;
         background: #fff;
         border-radius: 12px;
         box-shadow: 0 8px 40px rgba(0,0,0,0.18);
-        z-index: 2147483644;
-        display: none;
+        display: flex;
         flex-direction: column;
         overflow: hidden;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 13px;
         color: #1a1a1a;
-      }
-      #ai-qa-panel.open {
-        display: flex;
       }
 
       /* 面板头部 */
@@ -1104,17 +1111,28 @@ class AIBall {
         color: #7c3aed;
       }
     `;
-    document.head.appendChild(style);
   }
 
   createBall() {
+    // 宿主元素：接收鼠标事件、承载定位样式（:host）
     this.ball = document.createElement('div');
-    this.ball.id = 'ai-qa-ball';
-    this.ball.innerHTML = `
+    this.ball.id = 'ai-qa-ball-host';
+    const shadow = this.ball.attachShadow({ mode: 'open' });
+
+    // 样式隔离在 shadow DOM 内
+    const style = document.createElement('style');
+    style.textContent = this._ballCSS();
+    shadow.appendChild(style);
+
+    // 实际可见的球体元素
+    this.ballInner = document.createElement('div');
+    this.ballInner.id = 'ai-qa-ball';
+    this.ballInner.innerHTML = `
       <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.99.97 4.29L1 23l6.71-1.97C9.01 21.64 10.46 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2c0-3 3-2.5 3-4.5 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 2.5-3 2.5-3 4.5z"/>
       </svg>
     `;
+    shadow.appendChild(this.ballInner);
 
     document.body.appendChild(this.ball);
 
@@ -1124,9 +1142,26 @@ class AIBall {
   }
 
   createPanel() {
+    // 宿主元素：承载定位与显隐样式（:host / :host(.open)）
     this.panel = document.createElement('div');
-    this.panel.id = 'ai-qa-panel';
-    this.panel.innerHTML = `
+    this.panel.id = 'ai-qa-panel-host';
+    this.panelShadow = this.panel.attachShadow({ mode: 'open' });
+
+    // KaTeX CSS 需注入 shadow DOM——外部 head 的样式无法穿透 shadow 边界
+    const katexLink = document.createElement('link');
+    katexLink.rel = 'stylesheet';
+    katexLink.href = chrome.runtime.getURL('lib/katex.min.css');
+    this.panelShadow.appendChild(katexLink);
+
+    // 面板样式隔离在 shadow DOM 内
+    const style = document.createElement('style');
+    style.textContent = this._panelCSS();
+    this.panelShadow.appendChild(style);
+
+    // 实际面板内容
+    this.panelInner = document.createElement('div');
+    this.panelInner.id = 'ai-qa-panel';
+    this.panelInner.innerHTML = `
       <div class="qa-header">
         <h2>AI 问答助手</h2>
         <div class="qa-header-actions">
@@ -1199,12 +1234,14 @@ class AIBall {
         <a href="#" id="ai-qa-settings-link">设置</a>
       </div>
     `;
+    this.panelShadow.appendChild(this.panelInner);
 
     document.body.appendChild(this.panel);
 
     // 事件委托：点击 .collapsible-header 切换折叠（思考过程 / 搜索来源）
     // 不能用内联 onclick：宿主页 CSP 收紧后会失效；且内容频繁重建时委托更稳
-    this.panel.addEventListener('click', (e) => {
+    // 绑定到 panelInner 而非 host——host 上的事件 e.target 会被重定向，closest 失效
+    this.panelInner.addEventListener('click', (e) => {
       const header = e.target.closest('.collapsible-header');
       if (!header) return;
       header.classList.toggle('collapsed');
@@ -1215,65 +1252,65 @@ class AIBall {
     });
 
     // 面板拖拽（通过 header 拖动）
-    makeDraggable(this.panel, this.panel.querySelector('.qa-header'));
+    makeDraggable(this.panel, this.panelShadow.querySelector('.qa-header'));
 
     // 关闭按钮
-    this.panel.querySelector('.close-btn').addEventListener('click', () => this.togglePanel(false));
+    this.panelShadow.querySelector('.close-btn').addEventListener('click', () => this.togglePanel(false));
 
     // 历史对话按钮
-    this.panel.querySelector('#ai-qa-history-btn').addEventListener('click', () => this.showHistory());
+    this.panelShadow.querySelector('#ai-qa-history-btn').addEventListener('click', () => this.showHistory());
 
     // 重置对话按钮
-    this.panel.querySelector('#ai-qa-reset-btn').addEventListener('click', () => this._resetConversation());
+    this.panelShadow.querySelector('#ai-qa-reset-btn').addEventListener('click', () => this._resetConversation());
 
     // 历史对话返回按钮
-    this.panel.querySelector('#ai-qa-history-back').addEventListener('click', () => this.hideHistory());
+    this.panelShadow.querySelector('#ai-qa-history-back').addEventListener('click', () => this.hideHistory());
 
     // 设置按钮：在新标签页打开扩展设置
-    this.panel.querySelector('#ai-qa-settings-btn').addEventListener('click', () => {
+    this.panelShadow.querySelector('#ai-qa-settings-btn').addEventListener('click', () => {
       chrome.runtime.sendMessage({ type: 'OPEN_SETTINGS' });
     });
 
     // 历史对话搜索框（带防抖）
     let searchTimer = null;
-    this.panel.querySelector('#ai-qa-history-search').addEventListener('input', () => {
+    this.panelShadow.querySelector('#ai-qa-history-search').addEventListener('input', () => {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => this._loadHistoryList(), 250);
     });
 
     // 历史对话类别筛选
-    this.panel.querySelector('#ai-qa-history-filter').addEventListener('change', () => {
+    this.panelShadow.querySelector('#ai-qa-history-filter').addEventListener('change', () => {
       this._loadHistoryList();
     });
 
     // 历史对话全部删除
-    this.panel.querySelector('#ai-qa-history-clear').addEventListener('click', async () => {
+    this.panelShadow.querySelector('#ai-qa-history-clear').addEventListener('click', async () => {
       if (!confirm('确定清空全部历史对话？此操作不可撤销。')) return;
       await new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: 'CLEAR_QA_HISTORY' }, resolve);
       });
       // 清空搜索与筛选状态
-      this.panel.querySelector('#ai-qa-history-search').value = '';
-      this.panel.querySelector('#ai-qa-history-filter').value = 'all';
+      this.panelShadow.querySelector('#ai-qa-history-search').value = '';
+      this.panelShadow.querySelector('#ai-qa-history-filter').value = 'all';
       this._loadHistoryList();
     });
 
     // Tab 切换
-    this.panel.querySelectorAll('.qa-tabs button').forEach(btn => {
+    this.panelShadow.querySelectorAll('.qa-tabs button').forEach(btn => {
       btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
     });
 
     // 发送
-    this.panel.querySelector('#ai-qa-send').addEventListener('click', () => this.handleSend());
+    this.panelShadow.querySelector('#ai-qa-send').addEventListener('click', () => this.handleSend());
 
     // 导出
-    this.panel.querySelector('#ai-qa-export').addEventListener('click', () => this.handleExport());
+    this.panelShadow.querySelector('#ai-qa-export').addEventListener('click', () => this.handleExport());
 
     // 开始做题
-    this.panel.querySelector('#ai-qa-quiz-start').addEventListener('click', () => this._startQuizMode());
+    this.panelShadow.querySelector('#ai-qa-quiz-start').addEventListener('click', () => this._startQuizMode());
 
     // 深度思考开关
-    const thinkingToggle = this.panel.querySelector('#ai-qa-thinking-toggle');
+    const thinkingToggle = this.panelShadow.querySelector('#ai-qa-thinking-toggle');
     thinkingToggle.addEventListener('click', () => {
       const active = thinkingToggle.classList.toggle('active');
       thinkingToggle.setAttribute('aria-pressed', active ? 'true' : 'false');
@@ -1282,13 +1319,13 @@ class AIBall {
     this._initThinkingToggle();
 
     // 设置链接
-    this.panel.querySelector('#ai-qa-settings-link').addEventListener('click', (e) => {
+    this.panelShadow.querySelector('#ai-qa-settings-link').addEventListener('click', (e) => {
       e.preventDefault();
       chrome.runtime.sendMessage({ type: 'OPEN_SETTINGS' });
     });
 
     // 回车发送
-    this.panel.querySelector('#ai-qa-input').addEventListener('keydown', (e) => {
+    this.panelShadow.querySelector('#ai-qa-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         this.handleSend();
@@ -1310,14 +1347,14 @@ class AIBall {
           this._renderAssistantContent(this._streamingContent, this._streamingReasoning);
         }
         // 自动滚动到底部
-        const resultEl = this.panel.querySelector('#ai-qa-result');
+        const resultEl = this.panelShadow.querySelector('#ai-qa-result');
         resultEl.scrollTop = resultEl.scrollHeight;
       } else if (message.type === 'AI_STREAM_DONE' && message.requestId === this._streamRequestId) {
         this._streamingContent = message.fullContent;
         this._renderAssistantContent(this._streamingContent, this._streamingReasoning);
         this._onStreamComplete();
       } else if (message.type === 'AI_STREAM_ERROR' && message.requestId === this._streamRequestId) {
-        const asstMsg = this.panel.querySelector('#ai-qa-assistant-msg .qa-msg-content');
+        const asstMsg = this.panelShadow.querySelector('#ai-qa-assistant-msg .qa-msg-content');
         if (asstMsg) {
           asstMsg.innerHTML = `<span style="color:#dc2626">${message.error || '生成失败'}</span>`;
         }
@@ -1387,11 +1424,11 @@ class AIBall {
 
   switchTab(tab) {
     this.currentTab = tab;
-    this.panel.querySelectorAll('.qa-tabs button').forEach(btn => {
+    this.panelShadow.querySelectorAll('.qa-tabs button').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tab === tab);
     });
 
-    const input = this.panel.querySelector('#ai-qa-input');
+    const input = this.panelShadow.querySelector('#ai-qa-input');
     const placeholders = {
       organize: '输入你想整理的主题或问题...',
       quiz: '输入测验主题，AI 将生成相关测验题...',
@@ -1406,11 +1443,11 @@ class AIBall {
     // 如果在做题模式中，先退出以恢复隐藏的元素（标签栏、输入区域等）
     if (this._quizState) this._exitQuizMode();
     // 重置结果区域为初始空状态
-    const resultEl = this.panel.querySelector('#ai-qa-result');
+    const resultEl = this.panelShadow.querySelector('#ai-qa-result');
     resultEl.innerHTML = `<div class="empty">输入问题后点击发送<br><small style="color:#ccc">AI 将基于你的对话记录回答</small></div>`;
     // 隐藏导出和做题按钮
-    this.panel.querySelector('#ai-qa-export').style.display = 'none';
-    this.panel.querySelector('#ai-qa-quiz-start').style.display = 'none';
+    this.panelShadow.querySelector('#ai-qa-export').style.display = 'none';
+    this.panelShadow.querySelector('#ai-qa-quiz-start').style.display = 'none';
     // 清空状态
     this._lastResult = null;
     this._lastQuery = null;
@@ -1418,14 +1455,14 @@ class AIBall {
     this._streamingReasoning = '';
     this._lastReasoning = '';
     // 隐藏重置按钮
-    this.panel.querySelector('#ai-qa-reset-btn').style.display = 'none';
+    this.panelShadow.querySelector('#ai-qa-reset-btn').style.display = 'none';
     // 重置状态栏
-    const statusEl = this.panel.querySelector('#ai-qa-status');
+    const statusEl = this.panelShadow.querySelector('#ai-qa-status');
     if (statusEl) statusEl.textContent = '';
   }
 
   async handleSend() {
-    const input = this.panel.querySelector('#ai-qa-input');
+    const input = this.panelShadow.querySelector('#ai-qa-input');
     const query = input.value.trim();
     if (!query || this.isGenerating) return;
 
@@ -1435,11 +1472,11 @@ class AIBall {
     this._streamRequestId = null;
     this._lastQuery = query; // 保存当前问题，用于历史记录
     input.value = ''; // 清空输入框
-    const sendBtn = this.panel.querySelector('#ai-qa-send');
-    const exportBtn = this.panel.querySelector('#ai-qa-export');
-    const quizStartBtn = this.panel.querySelector('#ai-qa-quiz-start');
-    const resultEl = this.panel.querySelector('#ai-qa-result');
-    const statusEl = this.panel.querySelector('#ai-qa-status');
+    const sendBtn = this.panelShadow.querySelector('#ai-qa-send');
+    const exportBtn = this.panelShadow.querySelector('#ai-qa-export');
+    const quizStartBtn = this.panelShadow.querySelector('#ai-qa-quiz-start');
+    const resultEl = this.panelShadow.querySelector('#ai-qa-result');
+    const statusEl = this.panelShadow.querySelector('#ai-qa-status');
 
     sendBtn.disabled = true;
     sendBtn.textContent = '生成中...';
@@ -1520,11 +1557,11 @@ class AIBall {
   }
 
   _onStreamComplete() {
-    const exportBtn = this.panel.querySelector('#ai-qa-export');
-    const quizStartBtn = this.panel.querySelector('#ai-qa-quiz-start');
-    const resetBtn = this.panel.querySelector('#ai-qa-reset-btn');
-    const statusEl = this.panel.querySelector('#ai-qa-status');
-    const sendBtn = this.panel.querySelector('#ai-qa-send');
+    const exportBtn = this.panelShadow.querySelector('#ai-qa-export');
+    const quizStartBtn = this.panelShadow.querySelector('#ai-qa-quiz-start');
+    const resetBtn = this.panelShadow.querySelector('#ai-qa-reset-btn');
+    const statusEl = this.panelShadow.querySelector('#ai-qa-status');
+    const sendBtn = this.panelShadow.querySelector('#ai-qa-send');
 
     this._lastResult = this._streamingContent;
     this._lastReasoning = this._streamingReasoning;
@@ -1583,11 +1620,11 @@ class AIBall {
 
   // 显示历史对话面板
   async showHistory() {
-    const mainEl = this.panel.querySelector('#ai-qa-main');
-    const historyEl = this.panel.querySelector('#ai-qa-history');
-    const footerEl = this.panel.querySelector('.qa-footer');
-    const backBtn = this.panel.querySelector('#ai-qa-history-back');
-    const historyHeaderEl = this.panel.querySelector('.qa-history-header');
+    const mainEl = this.panelShadow.querySelector('#ai-qa-main');
+    const historyEl = this.panelShadow.querySelector('#ai-qa-history');
+    const footerEl = this.panelShadow.querySelector('.qa-footer');
+    const backBtn = this.panelShadow.querySelector('#ai-qa-history-back');
+    const historyHeaderEl = this.panelShadow.querySelector('.qa-history-header');
 
     mainEl.style.display = 'none';
     footerEl.style.display = 'none';
@@ -1603,18 +1640,18 @@ class AIBall {
     if (backBtn) backBtn.style.display = 'flex';
 
     // 重置到列表视图
-    this.panel.querySelector('#ai-qa-history-list').style.display = 'block';
-    this.panel.querySelector('#ai-qa-history-detail').style.display = 'none';
+    this.panelShadow.querySelector('#ai-qa-history-list').style.display = 'block';
+    this.panelShadow.querySelector('#ai-qa-history-detail').style.display = 'none';
 
     await this._loadHistoryList();
   }
 
   // 隐藏历史对话面板
   hideHistory() {
-    const mainEl = this.panel.querySelector('#ai-qa-main');
-    const historyEl = this.panel.querySelector('#ai-qa-history');
-    const footerEl = this.panel.querySelector('.qa-footer');
-    const backBtn = this.panel.querySelector('#ai-qa-history-back');
+    const mainEl = this.panelShadow.querySelector('#ai-qa-main');
+    const historyEl = this.panelShadow.querySelector('#ai-qa-history');
+    const footerEl = this.panelShadow.querySelector('.qa-footer');
+    const backBtn = this.panelShadow.querySelector('#ai-qa-history-back');
 
     mainEl.style.display = '';
     footerEl.style.display = '';
@@ -1626,11 +1663,11 @@ class AIBall {
 
   // 加载历史对话列表
   async _loadHistoryList() {
-    const listEl = this.panel.querySelector('#ai-qa-history-list');
+    const listEl = this.panelShadow.querySelector('#ai-qa-history-list');
 
     // 读取当前搜索关键字与筛选类别
-    const searchInput = this.panel.querySelector('#ai-qa-history-search');
-    const filterSelect = this.panel.querySelector('#ai-qa-history-filter');
+    const searchInput = this.panelShadow.querySelector('#ai-qa-history-search');
+    const filterSelect = this.panelShadow.querySelector('#ai-qa-history-filter');
     const keyword = (searchInput?.value || '').trim().toLowerCase();
     const tabFilter = filterSelect?.value || 'all';
 
@@ -1724,11 +1761,11 @@ class AIBall {
 
   // 显示历史对话详情
   _showHistoryDetail(record) {
-    const listEl = this.panel.querySelector('#ai-qa-history-list');
-    const detailEl = this.panel.querySelector('#ai-qa-history-detail');
-    const headerEl = this.panel.querySelector('#ai-qa-history-detail-header');
-    const bodyEl = this.panel.querySelector('#ai-qa-history-detail-body');
-    const historyHeaderEl = this.panel.querySelector('.qa-history-header');
+    const listEl = this.panelShadow.querySelector('#ai-qa-history-list');
+    const detailEl = this.panelShadow.querySelector('#ai-qa-history-detail');
+    const headerEl = this.panelShadow.querySelector('#ai-qa-history-detail-header');
+    const bodyEl = this.panelShadow.querySelector('#ai-qa-history-detail-body');
+    const historyHeaderEl = this.panelShadow.querySelector('.qa-history-header');
 
     listEl.style.display = 'none';
     // 隐藏"历史对话"标题行（搜索/筛选/全部删除工具栏）
@@ -2001,7 +2038,7 @@ class AIBall {
       submitted: new Array(questions.length).fill(false)
     };
 
-    const targetEl = container || this.panel.querySelector('#ai-qa-result');
+    const targetEl = container || this.panelShadow.querySelector('#ai-qa-result');
     this._quizContainer = targetEl;
     this._quizSavedHTML = targetEl.innerHTML;
 
@@ -2024,7 +2061,7 @@ class AIBall {
     this._quizHiddenEls = [];
     if (isMainResult) {
       for (const sel of ['.qa-tabs', '.qa-input-area', '.qa-footer']) {
-        const el = this.panel.querySelector(sel);
+        const el = this.panelShadow.querySelector(sel);
         if (el) {
           this._quizHiddenEls.push(el);
           el.style.display = 'none';
@@ -2044,7 +2081,7 @@ class AIBall {
       </div>
     `;
 
-    this.panel.querySelector('#ai-qa-quiz-exit').addEventListener('click', () => this._exitQuizMode());
+    this.panelShadow.querySelector('#ai-qa-quiz-exit').addEventListener('click', () => this._exitQuizMode());
     this._renderQuizQuestion();
   }
 
@@ -2057,9 +2094,9 @@ class AIBall {
     const userAnswer = this._quizState.answers[idx];
 
     const typeLabels = { choice: '选择题', truefalse: '判断题', fill: '填空题' };
-    const progressEl = this.panel.querySelector('#ai-qa-quiz-progress');
-    const cardEl = this.panel.querySelector('#ai-qa-quiz-card');
-    const navEl = this.panel.querySelector('#ai-qa-quiz-nav');
+    const progressEl = this.panelShadow.querySelector('#ai-qa-quiz-progress');
+    const cardEl = this.panelShadow.querySelector('#ai-qa-quiz-card');
+    const navEl = this.panelShadow.querySelector('#ai-qa-quiz-nav');
 
     progressEl.textContent = `第 ${idx + 1} / ${questions.length} 题`;
 
@@ -2178,7 +2215,7 @@ class AIBall {
     const userAnswer = this._quizState.answers[idx];
 
     if (userAnswer === null || userAnswer === undefined || userAnswer === '') {
-      const statusEl = this.panel.querySelector('#ai-qa-status');
+      const statusEl = this.panelShadow.querySelector('#ai-qa-status');
       if (statusEl) {
         const orig = statusEl.textContent;
         statusEl.textContent = '请先选择/输入答案';
@@ -2237,9 +2274,9 @@ class AIBall {
       }
     }
 
-    const cardEl = this.panel.querySelector('#ai-qa-quiz-card');
-    const navEl = this.panel.querySelector('#ai-qa-quiz-nav');
-    const progressEl = this.panel.querySelector('#ai-qa-quiz-progress');
+    const cardEl = this.panelShadow.querySelector('#ai-qa-quiz-card');
+    const navEl = this.panelShadow.querySelector('#ai-qa-quiz-nav');
+    const progressEl = this.panelShadow.querySelector('#ai-qa-quiz-progress');
 
     const rate = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
     let rateLabel = '继续努力';
@@ -2256,8 +2293,8 @@ class AIBall {
     `;
     navEl.innerHTML = `<button class="quiz-nav-btn quiz-redo-btn" id="ai-qa-quiz-redo">重新做题</button><button class="quiz-nav-btn quiz-exit-summary-btn" id="ai-qa-quiz-exit2">返回</button>`;
 
-    this.panel.querySelector('#ai-qa-quiz-redo').addEventListener('click', () => this._restartQuiz());
-    this.panel.querySelector('#ai-qa-quiz-exit2').addEventListener('click', () => this._exitQuizMode());
+    this.panelShadow.querySelector('#ai-qa-quiz-redo').addEventListener('click', () => this._restartQuiz());
+    this.panelShadow.querySelector('#ai-qa-quiz-exit2').addEventListener('click', () => this._exitQuizMode());
   }
 
   // 重新做题（不覆盖已保存的原始 HTML）
@@ -2280,7 +2317,7 @@ class AIBall {
         <div class="quiz-nav" id="ai-qa-quiz-nav"></div>
       </div>
     `;
-    this.panel.querySelector('#ai-qa-quiz-exit').addEventListener('click', () => this._exitQuizMode());
+    this.panelShadow.querySelector('#ai-qa-quiz-exit').addEventListener('click', () => this._exitQuizMode());
     this._renderQuizQuestion();
   }
 
@@ -2311,7 +2348,7 @@ class AIBall {
   }
 
   _renderAssistantContent(content, reasoning) {
-    const asstMsg = this.panel.querySelector('#ai-qa-assistant-msg .qa-msg-content');
+    const asstMsg = this.panelShadow.querySelector('#ai-qa-assistant-msg .qa-msg-content');
     if (!asstMsg) return;
     // 若有思考过程，渲染可折叠思考块（默认收起）+ 正式回答
     const reasoningText = (reasoning || this._streamingReasoning || '').trim();
@@ -2332,8 +2369,8 @@ class AIBall {
     html += this._renderMarkdown(content);
     asstMsg.innerHTML = html;
     // 绑定折叠点击
-    const block = this.panel.querySelector('#ai-qa-thinking-block');
-    const header = this.panel.querySelector('#ai-qa-thinking-header');
+    const block = this.panelShadow.querySelector('#ai-qa-thinking-block');
+    const header = this.panelShadow.querySelector('#ai-qa-thinking-header');
     if (block && header) {
       header.addEventListener('click', () => block.classList.toggle('collapsed'));
     }
@@ -2341,9 +2378,9 @@ class AIBall {
 
   // 仅更新思考块（流式思考阶段，不影响正式回答占位）
   _renderThinkingBlock(reasoning, streaming) {
-    const asstMsg = this.panel.querySelector('#ai-qa-assistant-msg .qa-msg-content');
+    const asstMsg = this.panelShadow.querySelector('#ai-qa-assistant-msg .qa-msg-content');
     if (!asstMsg) return;
-    let block = this.panel.querySelector('#ai-qa-thinking-block');
+    let block = this.panelShadow.querySelector('#ai-qa-thinking-block');
     if (!block) {
       // 首次收到思考 chunk：初始化结构，保留 typing-indicator 占位
       asstMsg.innerHTML = `
@@ -2357,8 +2394,8 @@ class AIBall {
         </div>
         <div class="typing-indicator"><span></span><span></span><span></span></div>
       `;
-      const header = this.panel.querySelector('#ai-qa-thinking-header');
-      const blockEl = this.panel.querySelector('#ai-qa-thinking-block');
+      const header = this.panelShadow.querySelector('#ai-qa-thinking-header');
+      const blockEl = this.panelShadow.querySelector('#ai-qa-thinking-block');
       if (header && blockEl) {
         header.addEventListener('click', () => blockEl.classList.toggle('collapsed'));
       }
@@ -2373,7 +2410,7 @@ class AIBall {
 
   // 读取深度思考开关当前状态
   _isThinkingEnabled() {
-    const toggle = this.panel.querySelector('#ai-qa-thinking-toggle');
+    const toggle = this.panelShadow.querySelector('#ai-qa-thinking-toggle');
     if (!toggle) return undefined;
     return toggle.classList.contains('active');
   }
@@ -2382,7 +2419,7 @@ class AIBall {
   _initThinkingToggle() {
     if (this._thinkingToggleInited) return;
     this._thinkingToggleInited = true;
-    const toggle = this.panel.querySelector('#ai-qa-thinking-toggle');
+    const toggle = this.panelShadow.querySelector('#ai-qa-thinking-toggle');
     if (!toggle) return;
     try {
       chrome.runtime.sendMessage({ type: 'GET_SETTINGS', category: 'llm' }, (resp) => {
@@ -2418,9 +2455,9 @@ class AIBall {
 
   setLoading(isLoading) {
     if (isLoading) {
-      this.ball.innerHTML = '<div class="loading-dot"></div>';
+      this.ballInner.innerHTML = '<div class="loading-dot"></div>';
     } else {
-      this.ball.innerHTML = `
+      this.ballInner.innerHTML = `
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
         </svg>
