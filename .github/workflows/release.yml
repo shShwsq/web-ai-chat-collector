@@ -33,10 +33,14 @@ jobs:
           npm install -g acorn
           errors=0
           # 检查所有自研 JS 文件
-          # 仅排除第三方压缩库（lib/*.min.js）和 node_modules
+          # 排除：
+          #   - node_modules/（第三方依赖）
+          #   - lib/*.min.js（第三方压缩库）
+          #   - tests/（测试代码用 ES module 语法，acorn --ecma2020 不支持 import/export）
           # lib/ 下的 db.js/embedding.js/llm.js/vector-store.js 是运行时核心，必须检查
           for f in $(find . -name '*.js' \
                        -not -path './node_modules/*' \
+                       -not -path './tests/*' \
                        -not -name '*.min.js'); do
             if ! acorn --ecma2020 "$f" > /dev/null 2>&1; then
               echo "Syntax error in $f"
@@ -82,12 +86,24 @@ jobs:
           #   由 popup/settings.js 通过 chrome.runtime.getURL + fetch 加载，必须打包
           # docs/skills/ 是供用户下载使用的 SKILL（检索脚本），整体打包
           # docs/skills/.env 含 API Key，绝不能进 release（.gitignore 已忽略，但 zip 不读 .gitignore）
+          #
+          # 开发文件排除（不进 release）：
+          #   - node_modules/      测试依赖（vitest/jsdom 等）
+          #   - tests/             测试代码与 fixtures
+          #   - package.json       仅开发用（扩展运行时由 manifest.json 声明）
+          #   - package-lock.json  同上
+          #   - vitest.config.js   测试配置
           zip -r dist/ai-chat-collector.zip . \
             -x ".git/*" \
             -x ".github/*" \
             -x "references/*" \
             -x "dist/*" \
+            -x "node_modules/*" \
+            -x "tests/*" \
             -x ".gitignore" \
+            -x "package.json" \
+            -x "package-lock.json" \
+            -x "vitest.config.js" \
             -x "docs/skills/.env" \
             -x "*/__pycache__/*" \
             -x "*/*/__pycache__/*" \

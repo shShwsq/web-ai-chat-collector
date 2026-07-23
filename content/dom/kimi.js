@@ -65,7 +65,7 @@ DOM_ADAPTERS.kimi = {
     if (!container) {
       // 兜底：尝试更宽泛的容器
       const fallback = document.querySelector('.chat-detail-main') || document.querySelector('[class*="chat-content"]');
-      console.log('[Kimi/DOM] 未找到 .chat-detail-content；fallback=%o', fallback);
+      console.log('[Kimi/DOM] 未找到 .chat-detail-content；fallback=%s', fallback ? fallback.className : 'null');
       return messages;
     }
 
@@ -130,13 +130,13 @@ DOM_ADAPTERS.kimi = {
   _extractUserContent: (el) => {
     const markdownEl = el.querySelector('.markdown-container .markdown') ||
                        el.querySelector('.markdown');
-    console.log('[Kimi/DOM] _extractUserContent: markdownEl=%o', markdownEl);
+    console.log('[Kimi/DOM] _extractUserContent: markdownEl=%s', markdownEl ? markdownEl.className : 'null');
     if (markdownEl) {
       return DOM_ADAPTERS.kimi._extractMarkdownText(markdownEl);
     }
     // 兜底:从 segment-content 取文本，但移除操作按钮（编辑/复制/分享等）
     const segContent = el.querySelector('.segment-content');
-    console.log('[Kimi/DOM] _extractUserContent fallback: segContent=%o', segContent);
+    console.log('[Kimi/DOM] _extractUserContent fallback: segContent=%s', segContent ? segContent.className : 'null');
     if (segContent) {
       const clone = segContent.cloneNode(true);
       // 移除已知的操作按钮容器和带 action 性质的元素
