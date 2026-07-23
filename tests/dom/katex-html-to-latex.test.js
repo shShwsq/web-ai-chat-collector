@@ -422,6 +422,42 @@ describe('希腊字母', () => {
 });
 
 // =================================================================
+// LaTeX 命令后跟字母的空格分隔
+// =================================================================
+// \partial、\alpha 等命令后紧跟字母时，KaTeX 渲染为独立的 .mord 兄弟节点，
+// 直接拼接会得到 \partialx（未定义命令）。_processChildren 在此场景插入空格。
+describe('LaTeX 命令后跟字母的空格分隔', () => {
+  it('\\partial x（∂ + x 两个独立 mord）', () => {
+    const html = katexHtml(mord('∂') + mordMathnormal('x'));
+    expect(convertHtml(html)).toBe('\\partial x');
+  });
+
+  it('\\partial x\\partial y（∂x∂y，第二个 \\partial 前无需空格，\\ 自分隔）', () => {
+    const html = katexHtml(
+      mord('∂') + mordMathnormal('x') + mord('∂') + mordMathnormal('y')
+    );
+    // \partial x\partial y 是合法 LaTeX：\ 自身分隔命令名，无需额外空格
+    expect(convertHtml(html)).toBe('\\partial x\\partial y');
+  });
+
+  it('\\rho uv（ρ + u + v，命令后多字母）', () => {
+    const html = katexHtml(mord('ρ') + mordMathnormal('u') + mordMathnormal('v'));
+    expect(convertHtml(html)).toBe('\\rho uv');
+  });
+
+  it('\\partial^{2} 不误插空格（命令后是 ^，非字母）', () => {
+    const html = katexHtml(mord('∂') + msupsub(supEntry('2')));
+    expect(convertHtml(html)).toBe('\\partial^{2}');
+  });
+
+  it('sin x 不误插空格（sin 不是 \\command）', () => {
+    // sin 是 .mop 但不是反斜杠命令，不触发空格插入
+    const html = katexHtml(mop('sin') + mordMathnormal('x'));
+    expect(convertHtml(html)).toBe('sinx');
+  });
+});
+
+// =================================================================
 // 复杂组合公式
 // =================================================================
 describe('复杂组合公式', () => {

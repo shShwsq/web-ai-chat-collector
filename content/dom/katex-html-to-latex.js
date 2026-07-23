@@ -166,7 +166,13 @@
       var result = '';
       var children = el.children;
       for (var i = 0; i < children.length; i++) {
-        result += this._processNode(children[i]);
+        var token = this._processNode(children[i]);
+        // LaTeX 命令（\xxx）后紧跟字母时插入空格，避免命令名粘连
+        // 如 \partial + x → \partial x（否则 \partialx 是未定义命令）
+        if (token && /\\[a-zA-Z]+$/.test(result) && /^[a-zA-Z]/.test(token)) {
+          result += ' ';
+        }
+        result += token;
       }
       return result;
     },
