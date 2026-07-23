@@ -207,6 +207,16 @@ describe('上下标', () => {
     );
     expect(convertHtml(html)).toBe('x^{2n+1}');
   });
+
+  it('嵌套上下标 x^{y^2}（_findDirectTopSpans 限定直接子层级）', () => {
+    // 内层 msupsub 的 vlist 不应被外层 _processSupSub 递归选中
+    // 外层上标内容 = y^{2}（由 _processNode 递归处理内层 msupsub 得到）
+    const innerSup = msupsub(supEntry('2'));
+    const html = katexHtml(
+      `${mordMathnormal('x')}${msupsub(supEntry(`${mordMathnormal('y')}${innerSup}`))}`
+    );
+    expect(convertHtml(html)).toBe('x^{y^{2}}');
+  });
 });
 
 // =================================================================
@@ -223,18 +233,21 @@ describe('分数', () => {
     expect(convertHtml(html)).toBe('\\frac{x}{y}');
   });
 
-  it('嵌套分数 \\frac{\\frac{1}{2}}{3}（已知限制：querySelectorAll 递归选中内层 vlist）', () => {
-    // _processFrac 用 querySelectorAll('.vlist > span[style*="top:"]') 递归查找所有后代
-    // 嵌套分数的内层 vlist 也会被选中，导致 entries 排序后分子分母取错
-    // 这是源码的已知限制，注释中提到"复杂嵌套降级为 textContent"
-    // 此测试断言当前（不完美）行为，以便未来修复时立即被发现
+  it('嵌套分数 \\frac{\\frac{1}{2}}{3}（_findDirectTopSpans 限定直接子层级）', () => {
+    // _processFrac 用 _findDirectTopSpans 只取当前 mfrac 直接子层级的 vlist 中的 span
+    // 避免了 querySelectorAll 递归进入嵌套 mfrac 的内层 vlist
+    // 内层 \frac{1}{2} 会被递归 _processNode 正确处理为 \frac{1}{2}
     const innerFrac = mfrac('1', '2');
     const html = katexHtml(mfrac(innerFrac, '3'));
     const result = convertHtml(html);
-    // 当前行为：内外层 vlist 的 span 都被收集，sort 后取最负和最大
-    // 结果不一定是 \frac{\frac{1}{2}}{3}，但至少应包含 \frac{
-    expect(result).toMatch(/^\\frac\{.*\}\{.*\}$/);
-    expect(result).toContain('\\frac{');
+    expect(result).toBe('\\frac{\\frac{1}{2}}{3}');
+  });
+
+  it('嵌套分数 \\frac{1}{\\frac{2}{3}}（分母嵌套）', () => {
+    const innerFrac = mfrac('2', '3');
+    const html = katexHtml(mfrac('1', innerFrac));
+    const result = convertHtml(html);
+    expect(result).toBe('\\frac{1}{\\frac{2}{3}}');
   });
 });
 

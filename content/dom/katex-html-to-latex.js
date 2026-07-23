@@ -276,14 +276,25 @@
       return text;
     },
 
+    // 在元素直接子层级的 vlist 中查找带 top 样式的 span
+    // 避免 querySelectorAll('.vlist > span[style*="top:"]') 递归进入嵌套结构
+    // （如 \frac{\frac{1}{2}}{3} 的内层 mfrac，或 x^{y^2} 的内层 msupsub）
+    // 方案：querySelector('.vlist') 返回文档顺序第一个 vlist（即外层），
+    //       再用 :scope > 限定只取其直接子 span，不递归
+    _findDirectTopSpans: function (containerEl) {
+      var vlist = containerEl.querySelector('.vlist');
+      if (!vlist) return [];
+      return vlist.querySelectorAll(':scope > span[style*="top:"]');
+    },
+
     // 处理上下标 .msupsub
     // 结构：.msupsub > .vlist-t > .vlist-r > .vlist > span[style="top:Xem"] > .pstrut + .sizing/.mord
     // 判断：top < SUP_THRESHOLD 为上标(^)，否则为下标(_)
     _processSupSub: function (supsubEl) {
       var self = this;
       var entries = [];
-      // 找所有带 top 样式的定位 span
-      var topSpans = supsubEl.querySelectorAll('.vlist > span[style*="top:"]');
+      // 只取当前 msupsub 直接子层级的 vlist 中的 span，不递归进入嵌套 msupsub
+      var topSpans = this._findDirectTopSpans(supsubEl);
       for (var i = 0; i < topSpans.length; i++) {
         var span = topSpans[i];
         var style = span.getAttribute('style') || '';
@@ -342,7 +353,8 @@
     //   分母：span[style="top:Yem"] > .pstrut + 内容
     _processFrac: function (fracEl) {
       var entries = [];
-      var topSpans = fracEl.querySelectorAll('.vlist > span[style*="top:"]');
+      // 只取当前 mfrac 直接子层级的 vlist 中的 span，不递归进入嵌套 mfrac 的内层 vlist
+      var topSpans = this._findDirectTopSpans(fracEl);
       for (var i = 0; i < topSpans.length; i++) {
         var span = topSpans[i];
         var style = span.getAttribute('style') || '';

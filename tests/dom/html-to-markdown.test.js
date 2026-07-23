@@ -401,6 +401,29 @@ describe('噪声元素移除', () => {
     expect(md).not.toContain('action');
     expect(md).not.toContain('toolbar');
   });
+
+  it('.segment-code-header 被移除（Kimi 代码块标题栏含语言标签和复制按钮）', () => {
+    // Kimi 代码块结构：.segment-code > .segment-code-header（噪声）+ .segment-code-content > pre > code
+    // header 含 .segment-code-lang（语言标签）和 .kimi-tooltip（复制按钮），整体被 NOISE_SELECTORS 移除
+    // 注意：语言标签随 header 一起被移除，turndown 默认 codeBlock 规则不提取语言（已知限制）
+    const html = `<div class="segment-code">
+      <div class="segment-code-header">
+        <span class="segment-code-lang">python</span>
+        <span class="kimi-tooltip">复制</span>
+      </div>
+      <div class="segment-code-content">
+        <pre><code>def hello():
+    print("hi")</code></pre>
+      </div>
+    </div>`;
+    const md = convert(html);
+    // 代码内容被提取（围栏代码块）
+    expect(md).toContain('```');
+    expect(md).toContain('def hello():');
+    expect(md).toContain('print("hi")');
+    // 标题栏噪声被移除
+    expect(md).not.toContain('复制');
+  });
 });
 
 // =================================================================
@@ -442,5 +465,55 @@ describe('复杂组合场景', () => {
     const md = convert(html);
     // 多个空 p 会产生多余空行，convert 内部 \n{3,} → \n\n 压缩
     expect(md).not.toMatch(/\n{3,}/);
+  });
+});
+
+// =================================================================
+// 表格转换（GFM 插件）
+// =================================================================
+describe('表格转换（GFM）', () => {
+  // turndown-plugin-gfm 负责将 <table> 转为 Markdown 表格
+  // Kimi 等平台用标准 <table> 元素渲染表格（kimi_table.txt 确认）
+
+  it('简单表格转为 Markdown 表格格式', () => {
+    const html = `<table>
+      <thead><tr><th>名称</th><th>值</th></tr></thead>
+      <tbody>
+        <tr><td>foo</td><td>1</td></tr>
+        <tr><td>bar</td><td>2</td></tr>
+      </tbody>
+    </table>`;
+    const md = convert(html);
+    // 表头
+    expect(md).toContain('名称');
+    expect(md).toContain('值');
+    // 分隔行（GFM 表格必须有 | --- | 分隔行）
+    expect(md).toMatch(/\|[\s-]*\|/);
+    // 数据行
+    expect(md).toContain('foo');
+    expect(md).toContain('bar');
+    expect(md).toContain('1');
+    expect(md).toContain('2');
+  });
+
+  it('表格与段落共存（Kimi .markdown > .paragraph + table 结构）', () => {
+    const html = `<div class="markdown">
+      <div class="paragraph">下面是对比表格：</div>
+      <table>
+        <thead><tr><th>方案</th><th>优点</th></tr></thead>
+        <tbody><tr><td>A</td><td>简单</td></tr></tbody>
+      </table>
+      <div class="paragraph">以上是方案对比。</div>
+    </div>`;
+    const md = convert(html);
+    // 段落内容保留
+    expect(md).toContain('下面是对比表格');
+    expect(md).toContain('以上是方案对比');
+    // 表格内容保留
+    expect(md).toContain('方案');
+    expect(md).toContain('优点');
+    expect(md).toContain('简单');
+    // GFM 分隔行存在
+    expect(md).toMatch(/\|[\s-]*\|/);
   });
 });

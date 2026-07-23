@@ -153,6 +153,31 @@ describe('Kimi 适配器', () => {
     expect(msgs[0].role).toBe('assistant');
     expect(msgs[0].content).toBe('仅回答');
   });
+
+  it('extractMessages 用户消息无 .markdown 时走兜底取 .segment-content 文本', () => {
+    // 真实 Kimi DOM 中部分纯文本用户消息无 .markdown 渲染容器，
+    // 文本直接在 .segment-content-box > .user-content 中
+    // 适配器 _extractUserContent 先找 .markdown，找不到则从 .segment-content 清理后取文本
+    document.body.innerHTML = `
+      <div class="chat-detail-content">
+        <div class="chat-content-item chat-content-item-user">
+          <div class="segment segment-user">
+            <div class="segment-content">
+              <div class="segment-content-box">
+                <div class="user-content">纯文本用户消息</div>
+              </div>
+              <div class="segment-user-action-row"><button>编辑</button></div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = kimi.extractMessages();
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe('user');
+    expect(msgs[0].content).toBe('纯文本用户消息');
+    // 操作按钮文本不应混入
+    expect(msgs[0].content).not.toContain('编辑');
+  });
 });
 
 // =================================================================
@@ -341,6 +366,63 @@ describe('千问适配器', () => {
     document.body.innerHTML = '<div>其他</div>';
     expect(qianwen.extractMessages()).toEqual([]);
   });
+
+  it('extractMessages 思考 + 代码块端到端（bar_workflow + qw-md-code）', () => {
+    // 真实场景（qianwen-code.txt）：思考容器 bar_workflow 与正式回答 answer-common-card 共存，
+    // 正式回答内含千问代码块 .qw-md-code（语言标签在 span.mr-auto，行号在 .react-syntax-highlighter-line-number）
+    document.body.innerHTML = `
+      <div id="message-list-scroller">
+        <div class="chat-round">
+          <div class="chat-question-card-wrap"><div class="qk-markdown">写个测试代码</div></div>
+          <div class="chat-answers-card-wrap">
+            <div class="message-card-j_n6rq">
+              <div data-card_name="bar_workflow">
+                <div class="flex flex-col gap-0.5">
+                  <div class="text-sm font-semibold">分析需求</div>
+                  <div class="thinking-content-tIwPU3">
+                    <div class="markdown-pc-special-class"><div class="qk-markdown">
+                      <div class="qk-md-paragraph">需要写一个简单的 Python 测试</div>
+                    </div></div>
+                  </div>
+                </div>
+              </div>
+              <div class="answer-common-card">
+                <div class="markdown-pc-special-class"><div class="qk-markdown">
+                  <div class="qk-md-paragraph">下面是测试代码：</div>
+                  <div class="qw-md-code">
+                    <div class="h-[36px]">
+                      <span class="font-medium mr-auto">python</span>
+                      <button>复制</button>
+                    </div>
+                    <div class="codeHighlighterWrapper">
+                      <pre><code><span class="react-syntax-highlighter-line-number">1</span>import os<span class="react-syntax-highlighter-line-number">2</span>print(os.getcwd())</code></pre>
+                    </div>
+                  </div>
+                </div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = qianwen.extractMessages();
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0].role).toBe('user');
+    expect(msgs[1].role).toBe('assistant');
+    // 思考内容被 think 块包裹
+    expect(msgs[1].content).toContain(THINK_OPEN);
+    expect(msgs[1].content).toContain('需要写一个简单的 Python 测试');
+    expect(msgs[1].content).toContain('分析需求');
+    // 代码块语言标签正确提取
+    expect(msgs[1].content).toContain('```python');
+    // 代码内容保留，行号被移除
+    expect(msgs[1].content).toContain('import os');
+    expect(msgs[1].content).toContain('print(os.getcwd())');
+    // 行号不应混入代码
+    expect(msgs[1].content).not.toMatch(/1import/);
+    expect(msgs[1].content).not.toMatch(/2print/);
+    // 标题栏"复制"按钮文字不应混入
+    expect(msgs[1].content).not.toContain('复制');
+  });
 });
 
 // =================================================================
@@ -408,6 +490,74 @@ describe('复旦适配器', () => {
 
   it('extractMessages 无 #share_part 时返回空数组', () => {
     document.body.innerHTML = '<div>其他</div>';
+    expect(fudan.extractMessages()).toEqual([]);
+  });
+
+  it('extractMessages 提取搜索来源（link_box 标题 + citation-link 编号映射 URL）', () => {
+    // 真实场景（fudan.txt）：.networking_card .link_box 内 .link_item 仅含"N、标题"（无 URL），
+    // URL 从回答中的 a.citation-link 按编号映射获取
+    document.body.innerHTML = `
+      <div id="share_part" class="message_list">
+        <div class="message_item">
+          <div class="cardBox">
+            <div class="my_issue has_a" position="a">
+              <div class="text a"><div class="content"><form class="n-form">
+                <div class="networking_card">
+                  <div class="summarize">quote6 using this information</div>
+                  <div class="link_box" style="display:none;">
+                    <div class="link_item">1、上海天气预报</div>
+                    <div class="link_item">2、本周降雨分析</div>
+                  </div>
+                </div>
+                <div class="think_box">
+                  <div class="think_title show">deep thinking</div>
+                  <div class="border_box show">分析天气数据</div>
+                </div>
+                <div class="md-editor answer md-editor-previewOnly">
+                  <div class="md-editor-preview-wrapper"><div class="md-editor-preview">
+                    <p>上海下周有雨<a class="circle citation-link xiaoshou" href="https://www.toutiao.com/article/7656300103346553385/">1</a>，注意防范<a class="circle citation-link xiaoshou" href="https://news.qq.com/rain/a/20260628A046ZW00">2</a>。</p>
+                  </div></div>
+                </div>
+              </form></div></div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = fudan.extractMessages();
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe('assistant');
+    // 搜索来源块格式：<search_result>...【标题】\nURL...</search_result>
+    expect(msgs[0].content).toContain('<search_result>');
+    expect(msgs[0].content).toContain('</search_result>');
+    // link_item 标题被提取
+    expect(msgs[0].content).toContain('上海天气预报');
+    expect(msgs[0].content).toContain('本周降雨分析');
+    // citation-link 编号→URL 映射正确
+    expect(msgs[0].content).toContain('https://www.toutiao.com/article/7656300103346553385/');
+    expect(msgs[0].content).toContain('https://news.qq.com/rain/a/20260628A046ZW00');
+    // 思考内容也被提取
+    expect(msgs[0].content).toContain(THINK_OPEN);
+    expect(msgs[0].content).toContain('分析天气数据');
+    // 正式回答保留
+    expect(msgs[0].content).toContain('上海下周有雨');
+  });
+
+  it('extractMessages 欢迎对话（无 sess_id 且未观察到 compose_chat）跳过采集', () => {
+    // 复旦首页欢迎对话 URL 无 sess_id，且未触发流式对话（_fudanComposeChatSeen=false），
+    // extractMessages 应返回空数组避免采集欢迎页噪声
+    resetEnv('/share', '', '复旦 AI Agent');
+    document.body.innerHTML = `
+      <div id="share_part" class="message_list">
+        <div class="message_item">
+          <div class="cardBox">
+            <div class="text a"><div class="content"><form class="n-form">
+              <div class="md-editor answer md-editor-previewOnly">
+                <div class="md-editor-preview-wrapper"><div class="md-editor-preview">欢迎使用复旦 AI Agent</div></div>
+              </div>
+            </form></div></div>
+          </div>
+        </div>
+      </div>`;
     expect(fudan.extractMessages()).toEqual([]);
   });
 });
@@ -500,5 +650,75 @@ describe('豆包适配器', () => {
     const msgs = doubao.extractMessages();
     expect(msgs).toHaveLength(1);
     expect(msgs[0].content).toBe('真实消息');
+  });
+
+  it('extractMessages 思考块展开态：提取 [data-thinking-box="content"] 内容', () => {
+    // 展开态：thinking-box-root 内含 data-thinking-box="content"（展开内容）和 title（标题噪声）
+    // 适配器优先取 content，移除 title 后取文本
+    document.body.innerHTML = `
+      <div class="list_items">
+        <div class="v_list_row" data-observe-row="block_1">
+          <div class="grid">
+            <div data-plugin-identifier="block_type:10040">
+              <div class="thinking-box-root-abc">
+                <div data-thinking-box="title">已完成思考，参考 3 篇资料</div>
+                <div data-thinking-box="content">
+                  <p>首先分析用户需求</p>
+                  <p>然后查阅相关资料</p>
+                </div>
+              </div>
+            </div>
+            <div data-plugin-identifier="block_type:10000">
+              <div class="md-box-root">
+                <div class="container-fBOrXO"><div class="container-enLQFx">正式回答</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = doubao.extractMessages();
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe('assistant');
+    // 思考内容被 think 块包裹
+    expect(msgs[0].content).toContain(THINK_OPEN);
+    expect(msgs[0].content).toContain(THINK_CLOSE);
+    // 展开内容被提取
+    expect(msgs[0].content).toContain('首先分析用户需求');
+    expect(msgs[0].content).toContain('然后查阅相关资料');
+    // 标题噪声不应混入思考内容
+    expect(msgs[0].content).not.toContain('已完成思考');
+    expect(msgs[0].content).not.toContain('参考 3 篇资料');
+    // 正式回答保留
+    expect(msgs[0].content).toContain('正式回答');
+  });
+
+  it('extractMessages 思考块折叠态：无 content 时清理标题取文本', () => {
+    // 折叠态：thinking-box-root 内只有 title，无 data-thinking-box="content"
+    // 适配器取整个 thinkingRoot 文本并清理标题前缀
+    document.body.innerHTML = `
+      <div class="list_items">
+        <div class="v_list_row" data-observe-row="block_1">
+          <div class="grid">
+            <div data-plugin-identifier="block_type:10040">
+              <div class="thinking-box-root-abc">
+                <div data-thinking-box="title">已完成思考，参考 3 篇资料</div>
+              </div>
+            </div>
+            <div data-plugin-identifier="block_type:10000">
+              <div class="md-box-root">
+                <div class="container-fBOrXO"><div class="container-enLQFx">正式回答</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = doubao.extractMessages();
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe('assistant');
+    // 折叠态思考内容为标题清理后的文本（前缀"已完成思考，参考 N 篇资料"被移除）
+    // 由于标题清理后可能为空，思考块可能不生成 think 标签
+    // 关键断言：正式回答被提取，且标题噪声"参考 3 篇资料"不出现在最终内容中
+    expect(msgs[0].content).toContain('正式回答');
+    expect(msgs[0].content).not.toContain('参考 3 篇资料');
   });
 });
