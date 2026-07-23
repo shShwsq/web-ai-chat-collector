@@ -11,13 +11,13 @@
 // 支持的 KaTeX 结构（覆盖常见数学公式）：
 //   - 普通字符 .mord / .mord.mathnormal（变量、常量）
 //   - 操作符 .mop（∫→\int, ∑→\sum, ×→\times 等，查 OP_MAP 表）
-//   - 括号 .mopen / .mclose
+//   - 括号 .mopen / .mclose（.nulldelimiter 为不可见占位，不输出）
 //   - 二元运算符 .mbin（+, −）
 //   - 关系符 .mrel（=, <, >, ≤, ≥, ≠）
 //   - 标点 .mpunct
 //   - 上下标 .msupsub（通过 vlist 的 top 值判断上标/下标）
 //   - 分数 .mfrac
-//   - 根号 .msqrt / .mroot
+//   - 根号 .mord.sqrt（\sqrt{} 和 \sqrt[n]{}，通过 .root 子元素区分）
 //   - 间隔 .mspace（忽略）
 //   - 布局占位 .strut（忽略）
 //
@@ -153,7 +153,8 @@
           result += this._processChildren(bases[i]);
         }
         // 压缩连续多空格为单个（.mspace 与 .mbin/.mrel 的空格会叠加）
-        return result.replace(/ {2,}/g, ' ').trim();
+        // 移除零宽空格 U+200B（KaTeX 布局元素可能残留，导致 KaTeX 重新渲染时报 unknownSymbol 警告）
+        return result.replace(/ {2,}/g, ' ').replace(/\u200b/g, '').trim();
       } catch (e) {
         console.warn('[KatexHtmlToLatex] 解析失败，降级为 textContent:', e);
         return katexHtmlEl.textContent.trim();
@@ -178,6 +179,8 @@
       if (/\bstrut\b/.test(cls)) return '';
       if (/\bmspace\b/.test(cls)) return ' ';
       if (/\bpstrut\b/.test(cls)) return '';
+      // .vlist-s 是 KaTeX vlist 的间距占位，textContent 为零宽空格 U+200B，不能进入输出
+      if (/\bvlist-s\b/.test(cls)) return '';
 
       // 上下标容器
       if (/\bmsupsub\b/.test(cls)) {
@@ -189,12 +192,9 @@
         return this._processFrac(node);
       }
 
-      // 根号
-      if (/\bmsqrt\b/.test(cls)) {
+      // 根号（KaTeX 0.16+ 输出 class="mord sqrt"，含可选 .root 子元素表示根指数）
+      if (/\bsqrt\b/.test(cls)) {
         return this._processSqrt(node);
-      }
-      if (/\bmroot\b/.test(cls)) {
-        return this._processRoot(node);
       }
 
       // 矩阵/表格（简化处理：逐格拼接）
@@ -209,9 +209,12 @@
 
       // 括号
       if (/\bmopen\b/.test(cls)) {
+        // nulldelimiter 是不可见分隔符（如 \frac 两侧的空占位），不输出
+        if (/\bnulldelimiter\b/.test(cls)) return '';
         return '(';
       }
       if (/\bmclose\b/.test(cls)) {
+        if (/\bnulldelimiter\b/.test(cls)) return '';
         // mclose 可能带上下标（如 )^2），先取括号再处理 msupsub
         var closeText = ')';
         var supsub = node.querySelector(':scope > .msupsub');
@@ -379,20 +382,46 @@
       return '\\frac{' + entries[0].text + '}{' + entries[entries.length - 1].text + '}';
     },
 
-    // 处理根号 .msqrt
-    // 结构：.msqrt > .vlist-t > .vlist-r > .vlist（含根号符号和被开方数）
+    // 处理根号 .mord.sqrt（KaTeX 0.16+ 实际输出 class="mord sqrt"）
+    // 结构：
+    //   <span class="mord sqrt">
+    //     <span class="root">...根指数...</span>  <!-- 仅 \sqrt[n]{...} 有此元素 -->
+    //     <span class="vlist-t vlist-t2">
+    //       <span class="vlist-r"><span class="vlist">
+    //         <span class="svg-align" style="top:..."><span class="pstrut"></span><span class="mord" style="padding-left:...">...被开方数...</span></span>
+    //         <span style="top:..."><span class="pstrut"></span><span class="hide-tail"><svg>...</svg></span></span>
+    //       </span></span>
+    //     </span>
+    //   </span>
     _processSqrt: function (sqrtEl) {
-      // 收集所有非根号符号的内容
-      var content = this._processChildren(sqrtEl);
-      // 移除根号符号 √
-      content = content.replace(/√/g, '').trim();
-      return '\\sqrt{' + content + '}';
-    },
+      // 查找根指数（仅 \sqrt[n]{...} 有 .root 子元素）
+      var rootEl = sqrtEl.querySelector(':scope > .root');
+      var rootIndex = '';
+      if (rootEl) {
+        rootIndex = this._processChildren(rootEl).trim();
+      }
 
-    // 处理 n 次根号 .mroot
-    _processRoot: function (rootEl) {
-      // 简化处理：取所有文本
-      return '\\sqrt[' + this._nodeText(rootEl) + ']{}';
+      // 查找被开方数：.svg-align 下的直接子 .mord（带 padding-left 样式）
+      var radicandEl = sqrtEl.querySelector('.svg-align > .mord');
+      var radicand = '';
+      if (radicandEl) {
+        radicand = this._processMord(radicandEl);
+      } else {
+        // 降级：处理所有子节点（排除 .root），移除根号符号 √
+        var content = '';
+        var children = sqrtEl.children;
+        for (var i = 0; i < children.length; i++) {
+          var childCls = children[i].getAttribute('class') || '';
+          if (/\broot\b/.test(childCls)) continue;
+          content += this._processNode(children[i]);
+        }
+        radicand = content.replace(/√/g, '').trim();
+      }
+
+      if (rootIndex) {
+        return '\\sqrt[' + rootIndex + ']{' + radicand + '}';
+      }
+      return '\\sqrt{' + radicand + '}';
     },
 
     // 处理矩阵/表格 .mtable（简化：逐行逐格拼接）

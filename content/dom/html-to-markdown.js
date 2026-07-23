@@ -275,7 +275,9 @@
     '.thinking-container',
     // DeepSeek 引用图标容器（含 SVG 和隐藏的占位字符，引用编号在相邻的 .ds-markdown-cite 中）
     '._2ed5dee',
-    // KaTeX MathML 层（.katex-mathml 是 <annotation> 的容器，源码由 _extractKatexLatex 提取，无需重复渲染）
+    // KaTeX MathML 层（含 <annotation> 原始 LaTeX 源码）
+    // 源码已由 convert() 预提取到 .katex 的 data-latex-source 属性，此处安全移除，
+    // 避免 <math> 标签内容被 turndown 作为普通文本重复渲染
     '.katex-mathml',
     // 千问搜索结果摘要（嵌套在思考内容中，显示"参考了N篇结果"）
     '[class*="search-wrapper"]',
@@ -318,6 +320,20 @@
 
       // 克隆后移除噪声元素，避免影响原文
       var clone = el.cloneNode(true);
+
+      // 预提取 KaTeX 源码到 data 属性
+      // 必须在移除 .katex-mathml（NOISE_SELECTORS）之前执行，按优先级提取原始 LaTeX：
+      //   1. <annotation encoding="application/x-tex">（标准平台 + 豆包块级公式）
+      //   2. 祖先元素的 copy-text 属性（豆包行内公式，LaTeX 存在父容器而非 annotation）
+      // 无上述源的节点（如 Kimi）不设置 data 属性，自动降级到 katex-html 反向解析。
+      var katexNodes = clone.querySelectorAll('.katex');
+      katexNodes.forEach(function (katexNode) {
+        var latex = HtmlToMarkdown._extractRawLatex(katexNode);
+        if (latex) {
+          katexNode.setAttribute('data-latex-source', latex);
+        }
+      });
+
       for (var i = 0; i < NOISE_SELECTORS.length; i++) {
         var nodes = clone.querySelectorAll(NOISE_SELECTORS[i]);
         nodes.forEach(function (n) { n.remove(); });
@@ -334,16 +350,59 @@
       return markdown;
     },
 
-    // 从 KaTeX 节点提取 LaTeX 源码
-    // 优先路径：从 <annotation encoding="application/x-tex"> 提取原始 LaTeX（DeepSeek 等标准平台）
-    // 降级路径：调用 KatexHtmlToLatex 反向解析 .katex-html（Kimi 等移除了 annotation 的平台）
-    _extractKatexLatex: function (node) {
-      // 优先：标准 <annotation> 可访问性层
-      var ann = node.querySelector('annotation[encoding="application/x-tex"]');
+    // 从 KaTeX 节点提取原始 LaTeX 源码（无损路径，不含反向解析）
+    // 供 convert() 预提取和 _extractKatexLatex 路径 B 共用，按优先级尝试：
+    //   1. <annotation encoding="application/x-tex">（标准 KaTeX 结构）
+    //   2. 祖先元素的 copy-text 属性（豆包行内公式：LaTeX 存在父容器 math-inline 的
+    //      copy-text 属性中，用 \(...\) 或 \[...\] 定界符包裹，katex 节点无 annotation）
+    // 返回空字符串表示无无损源可用，调用方应降级到反向解析
+    _extractRawLatex: function (katexNode) {
+      // 优先路径 1：标准 <annotation>
+      var ann = katexNode.querySelector('annotation[encoding="application/x-tex"]');
       if (ann && ann.textContent) {
         return ann.textContent;
       }
-      // 降级：反向解析 .katex-html
+
+      // 优先路径 2：祖先元素的 copy-text 属性（豆包行内公式）
+      // copy-text 在 .katex 的父元素（如 .math-inline 容器）上，用 closest 向上查找
+      var copyTextParent = katexNode.closest('[copy-text]');
+      if (copyTextParent) {
+        var copyText = copyTextParent.getAttribute('copy-text');
+        if (copyText) {
+          // 去除定界符 \(...\)（行内）或 \[...\]（块级）
+          var latex = copyText
+            .replace(/^\\\(([\s\S]+)\\\)$/, '$1')
+            .replace(/^\\\[(.+?)\\\]$/, '$1')
+            .trim();
+          if (latex) return latex;
+        }
+      }
+
+      return '';
+    },
+
+    // 从 KaTeX 节点提取 LaTeX 源码（四级降级链）
+    // 路径 A：预提取缓存 data-latex-source（convert() 预提取的 annotation 或 copy-text）
+    // 路径 B：实时提取 annotation + copy-text（直接调用 _extractKatexLatex、未经 convert 预提取时命中）
+    // 路径 C：调用 KatexHtmlToLatex 反向解析 .katex-html（Kimi 等无 annotation/copy-text 的平台）
+    // 最终降级：纯文本（结构丢失，但保证不中断）
+    _extractKatexLatex: function (node) {
+      // 路径 A：预提取缓存
+      // node 可能是 .katex（行内，data 属性设在自身）或 .katex-display（块级，
+      // data 属性设在其内部 .katex 上），统一定位到 .katex 节点读取
+      var katexEl = node.matches('.katex') ? node : node.querySelector('.katex');
+      if (katexEl) {
+        var cached = katexEl.getAttribute('data-latex-source');
+        if (cached) return cached;
+      }
+
+      // 路径 B：实时提取 annotation + copy-text
+      if (katexEl) {
+        var raw = HtmlToMarkdown._extractRawLatex(katexEl);
+        if (raw) return raw;
+      }
+
+      // 路径 C：反向解析 .katex-html
       if (typeof KatexHtmlToLatex !== 'undefined') {
         var katexHtml = node.querySelector('.katex-html');
         if (katexHtml) {
