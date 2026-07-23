@@ -145,12 +145,14 @@ DOM_ADAPTERS.fudan = {
       const userText = item.querySelector('.text.myQuestion, .text.q');
       const assistantText = item.querySelector('.text.a');
 
+      // 同一 .message_item 内可能同时含用户消息和助手消息，分别提取
       if (userText) {
         const content = DOM_ADAPTERS.fudan._extractUserContent(userText);
         if (content) {
           messages.push({ role: 'user', content, timestamp: new Date().toISOString() });
         }
-      } else if (assistantText) {
+      }
+      if (assistantText) {
         const msg = DOM_ADAPTERS.fudan._extractAssistantMessage(assistantText);
         if (msg) messages.push(msg);
       }

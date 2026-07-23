@@ -4,3 +4,8 @@ references/
 docs/skills/.env
 
 __pycache__/
+
+# 测试依赖（不提交，CI 中重新安装）
+node_modules/
+coverage/
+.vitest-cache/
