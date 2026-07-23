@@ -202,6 +202,13 @@
         return this._processMtable(node);
       }
 
+      // 操作符带上下限（\sum、\lim、\prod 等）
+      // KaTeX 对这类"limits"型操作符在 inline 模式下用 vlist 上下排列（非 msupsub），
+      // 操作符符号本身也在 vlist 中间，需区分操作符 entry 和下标/上标 entry
+      if (/\bop-limits\b/.test(cls)) {
+        return this._processOpLimits(node);
+      }
+
       // 操作符（∫ ∑ 等，需查表）
       if (/\bmop\b/.test(cls)) {
         return this._processOp(node);
@@ -265,9 +272,78 @@
       return this._processChildren(node);
     },
 
-    // 处理操作符 .mop（查 OP_MAP 表，未命中则取文本）
+    // 处理操作符 .mop
+    // 叶子 .mop（如 <span class="mop">∫</span>）直接查 OP_MAP
+    // 嵌套 .mop（如积分/求和带上下限：<span class="mop">
+    //   <span class="mop op-symbol large-op">∫</span><span class="msupsub">...</span>
+    // </span>）需递归处理子元素，分别提取操作符符号和上下限
     _processOp: function (node) {
+      if (node.children.length > 0) {
+        return this._processChildren(node);
+      }
       return this._textWithOpMap(node);
+    },
+
+    // 处理 .mop.op-limits（\sum、\lim、\prod 等"limits"型操作符）
+    // KaTeX 对这类操作符在 inline 模式下用 vlist 上下排列：
+    //   .mop.op-limits > .vlist-t > .vlist-r > .vlist > span[style="top:Xem"]
+    // 每个 entry 含 .pstrut（忽略）+ 内容。其中含 .mop 子元素的是操作符符号，
+    // top 值更大（更接近 0）的是下标（在操作符下方），top 值更小（更负）的是上标（在操作符上方）
+    _processOpLimits: function (node) {
+      var topSpans = this._findDirectTopSpans(node);
+      var entries = [];
+      for (var i = 0; i < topSpans.length; i++) {
+        var span = topSpans[i];
+        var style = span.getAttribute('style') || '';
+        var topMatch = style.match(/top:\s*(-?[\d.]+)em/);
+        if (!topMatch) continue;
+        var topVal = parseFloat(topMatch[1]);
+        var contentParts = [];
+        var children = span.children;
+        var hasMop = false;
+        for (var j = 0; j < children.length; j++) {
+          var child = children[j];
+          var childCls = child.getAttribute('class') || '';
+          if (/\bpstrut\b/.test(childCls)) continue;
+          // 检查内容是否含 .mop（操作符符号 entry）
+          if (/\bmop\b/.test(childCls) || child.querySelector('.mop')) {
+            hasMop = true;
+          }
+          contentParts.push(this._processNode(child));
+        }
+        entries.push({
+          top: topVal,
+          text: contentParts.join('').trim(),
+          isOperator: hasMop
+        });
+      }
+
+      // 找操作符 entry
+      var operatorEntry = null;
+      for (var k = 0; k < entries.length; k++) {
+        if (entries[k].isOperator) {
+          operatorEntry = entries[k];
+          break;
+        }
+      }
+      if (!operatorEntry) {
+        // 未找到操作符 entry，降级为递归处理子节点
+        return this._processChildren(node);
+      }
+
+      // 操作符在前，下标/上标在后：\sum_{k=1}^{\infty}
+      var result = operatorEntry.text;
+      for (var m = 0; m < entries.length; m++) {
+        if (entries[m] === operatorEntry) continue;
+        if (entries[m].top > operatorEntry.top) {
+          // top 更大（更接近 0）→ 下标（在操作符下方）
+          result += '_{' + entries[m].text + '}';
+        } else {
+          // top 更小（更负）→ 上标（在操作符上方）
+          result += '^{' + entries[m].text + '}';
+        }
+      }
+      return result;
     },
 
     // 取节点文本并查 OP_MAP（将 ∫ → \int、′ → ' 等符号映射为 LaTeX 命令）

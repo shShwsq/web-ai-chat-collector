@@ -470,6 +470,100 @@ describe('复杂组合公式', () => {
 });
 
 // =================================================================
+// 操作符带上下限（真实 KaTeX 嵌套结构）
+// =================================================================
+// Kimi 移除了 <annotation> 可访问性层后，这些结构的反向解析是积分/求和公式
+// 能否正确导出的关键。覆盖两种 KaTeX inline 渲染结构：
+//   1. .mop 容器 > .mop.op-symbol（∫）+ .msupsub（上下限）— 用于积分
+//   2. .mop.op-limits 容器 > vlist > entries（下标/操作符/上标）— 用于 \sum、\lim
+describe('操作符带上下限（真实 KaTeX 嵌套结构）', () => {
+  // 结构 1：.mop 容器嵌套 .mop.op-symbol + .msupsub（积分等 large-op）
+  // 修复前 _processOp 直接取整体 textContent（如 "∫01"），查不到 OP_MAP 导致输出乱码
+  function mopNestedWithSupSub(symbol, ...supsubEntries) {
+    return `<span class="mop">
+      <span class="mop op-symbol large-op" style="margin-right:0.44445em;">${symbol}</span>
+      ${msupsub(...supsubEntries)}
+    </span>`;
+  }
+
+  it('inline 积分 \\int_{0}^{1}（.mop 嵌套 .mop.op-symbol + .msupsub）', () => {
+    const html = katexHtml(
+      mopNestedWithSupSub('∫', supEntry('1'), subEntry('0'))
+    );
+    expect(convertHtml(html)).toBe('\\int_{0}^{1}');
+  });
+
+  it('inline 环路积分 \\oint_{z=1}（.mop 嵌套，仅下标）', () => {
+    const html = katexHtml(
+      mopNestedWithSupSub('∮',
+        subEntry(`${mordMathnormal('z')}${mrel('=')}${mord('1')}`)
+      )
+    );
+    expect(convertHtml(html)).toBe('\\oint_{z = 1}');
+  });
+
+  // 结构 2：.mop.op-limits 容器 + vlist（\sum、\lim 等 limits 型操作符）
+  // KaTeX vlist 中 entry 按 top 从大到小排列（下标 top 最接近 0，上标 top 最负）
+  // 含 .mop 子元素的 entry 是操作符符号，其余根据 top 与操作符 top 的大小判断上下标
+  function opLimitsEntry(innerHtml, top, isOperator) {
+    const content = isOperator
+      ? innerHtml
+      : `<span class="sizing reset-size6 size3 mtight"><span class="mord mtight">${innerHtml}</span></span>`;
+    return `<span style="top:${top}em;">
+      <span class="pstrut" style="height:3em;"></span>
+      <span>${content}</span>
+    </span>`;
+  }
+  function opLimits(...entries) {
+    return `<span class="mop op-limits">
+      <span class="vlist-t vlist-r">
+        <span class="vlist">${entries.join('')}</span>
+      </span>
+    </span>`;
+  }
+
+  it('inline 求和 \\sum_{k=1}^{\\infty}（.mop.op-limits vlist 3 entries）', () => {
+    // 真实 KaTeX 文档顺序：下标(top=-2.4) → 操作符(top=-3) → 上标(top=-3.8)
+    // ∞ 在 mtight 上下文中渲染为 .mord（非 .mop），不会误判为操作符 entry
+    const html = katexHtml(
+      opLimits(
+        opLimitsEntry(`${mordMathnormal('k')}${mrel('=')}${mord('1')}`, -2.4, false),
+        opLimitsEntry('<span class="mop op-symbol large-op">∑</span>', -3, true),
+        opLimitsEntry('∞', -3.8, false)
+      )
+    );
+    expect(convertHtml(html)).toBe('\\sum_{k = 1}^{\\infty}');
+  });
+
+  it('inline 极限 \\lim_{n \\to \\infty}（.mop.op-limits vlist 2 entries，仅下标）', () => {
+    // lim 是文本操作符（.mop 无 op-symbol），下标在操作符下方
+    const html = katexHtml(
+      opLimits(
+        opLimitsEntry(`${mordMathnormal('n')}${mrel('→')}${mord('∞')}`, -2.3857, false),
+        opLimitsEntry('<span class="mop">lim</span>', -3, true)
+      )
+    );
+    expect(convertHtml(html)).toBe('lim_{n \\to \\infty}');
+  });
+
+  it('积分 + 求和组合公式（端到端结构验证）', () => {
+    // 模拟真实 Kimi HTML 中的组合结构：\int_{0}^{1} x \sum_{k=1}^{n} dx
+    const html = katexHtml(
+      mopNestedWithSupSub('∫', supEntry('1'), subEntry('0')) +
+      mordMathnormal('x') +
+      opLimits(
+        opLimitsEntry(`${mordMathnormal('k')}${mrel('=')}${mord('1')}`, -2.4, false),
+        opLimitsEntry('<span class="mop op-symbol large-op">∑</span>', -3, true),
+        opLimitsEntry(mordMathnormal('n'), -3.8, false)
+      ) +
+      mordMathnormal('d') +
+      mordMathnormal('x')
+    );
+    expect(convertHtml(html)).toBe('\\int_{0}^{1}x\\sum_{k = 1}^{n}dx');
+  });
+});
+
+// =================================================================
 // 降级处理
 // =================================================================
 describe('降级处理', () => {
