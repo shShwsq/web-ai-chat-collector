@@ -73,33 +73,74 @@ function msupsub(...entries) {
   </span>`;
 }
 
-// 分数 .mfrac：分子 top 负值（在上方），分母 top 正值（在下方）
+// 分数 .mfrac：KaTeX 0.16+ 实际用 .mord > .mopen.nulldelimiter + .mfrac + .mclose.nulldelimiter 包裹
+// 分子 top 最负（在上方），分母 top 较大（在下方），中间有 frac-line（空文本）
 function mfrac(numerator, denominator) {
-  return `<span class="mfrac">
-    <span class="vlist-t vlist-r">
-      <span class="vlist">
-        <span style="top:-2.314em;"><span class="pstrut"></span><span class="mord mtight">${denominator}</span></span>
-        <span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="mord mtight">${numerator}</span></span>
+  return `<span class="mord">
+    <span class="mopen nulldelimiter"></span>
+    <span class="mfrac">
+      <span class="vlist-t vlist-r">
+        <span class="vlist">
+          <span style="top:-2.314em;"><span class="pstrut"></span><span class="mord mtight">${denominator}</span></span>
+          <span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line"></span></span>
+          <span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord mtight">${numerator}</span></span>
+        </span>
       </span>
+    </span>
+    <span class="mclose nulldelimiter"></span>
+  </span>`;
+}
+
+// 根号 .mord.sqrt：KaTeX 0.16+ 实际输出 class="mord sqrt"
+// 被开方数在 .svg-align > .mord（带 padding-left）中，surd 在 .hide-tail > svg 中（无文本）
+function msqrt(content) {
+  return `<span class="mord sqrt">
+    <span class="vlist-t vlist-t2">
+      <span class="vlist-r">
+        <span class="vlist">
+          <span class="svg-align" style="top:-3em;">
+            <span class="pstrut" style="height:3em;"></span>
+            <span class="mord" style="padding-left:0.833em;">${content}</span>
+          </span>
+          <span style="top:-2.8092em;">
+            <span class="pstrut" style="height:3em;"></span>
+            <span class="hide-tail"><svg></svg></span>
+          </span>
+        </span>
+        <span class="vlist-s">\u200b</span>
+      </span>
+      <span class="vlist-r"><span class="vlist"><span></span></span></span>
     </span>
   </span>`;
 }
 
-// 根号 .msqrt：KaTeX v0.16+ 用 SVG 渲染根号线（无文本），不是 √ 字符
-// _processSqrt 的 replace(/√/g) 是兼容旧版本，新版本根号符号为空文本，不影响
-function msqrt(content) {
-  return `<span class="msqrt">
-    <span class="vlist-t vlist-r">
-      <span class="vlist">
-        <span style="top:-3em;">
-          <span class="pstrut" style="height:3em;"></span>
-          <span class="svg-align"></span>
+// n 次根号 .mord.sqrt（含 .root 子元素表示根指数）
+// KaTeX 0.16+ 将根指数放在 .root > .vlist-t > ... > .sizing.mtight > .mord.mtight 中
+function mrootN(rootIndex, content) {
+  return `<span class="mord sqrt">
+    <span class="root">
+      <span class="vlist-t"><span class="vlist-r"><span class="vlist">
+        <span style="top:-2.895em;">
+          <span class="pstrut" style="height:2.5em;"></span>
+          <span class="sizing reset-size6 size1 mtight"><span class="mord mtight"><span class="mord mtight">${rootIndex}</span></span></span>
         </span>
-        <span style="top:-2.7em;">
-          <span class="pstrut" style="height:2.7em;"></span>
-          <span class="mord">${content}</span>
+      </span></span></span>
+    </span>
+    <span class="vlist-t vlist-t2">
+      <span class="vlist-r">
+        <span class="vlist">
+          <span class="svg-align" style="top:-3em;">
+            <span class="pstrut" style="height:3em;"></span>
+            <span class="mord" style="padding-left:0.833em;">${content}</span>
+          </span>
+          <span style="top:-2.8092em;">
+            <span class="pstrut" style="height:3em;"></span>
+            <span class="hide-tail"><svg></svg></span>
+          </span>
         </span>
+        <span class="vlist-s">\u200b</span>
       </span>
+      <span class="vlist-r"><span class="vlist"><span></span></span></span>
     </span>
   </span>`;
 }
@@ -256,13 +297,61 @@ describe('分数', () => {
 // =================================================================
 describe('根号', () => {
   it('简单根号 \\sqrt{x}', () => {
-    const html = katexHtml(msqrt('x'));
+    const html = katexHtml(msqrt(mordMathnormal('x')));
     expect(convertHtml(html)).toBe('\\sqrt{x}');
   });
 
   it('根号内含数字 \\sqrt{2}', () => {
-    const html = katexHtml(msqrt('2'));
+    const html = katexHtml(msqrt(mord('2')));
     expect(convertHtml(html)).toBe('\\sqrt{2}');
+  });
+
+  it('n 次根号 \\sqrt[3]{x}', () => {
+    const html = katexHtml(mrootN('3', mordMathnormal('x')));
+    expect(convertHtml(html)).toBe('\\sqrt[3]{x}');
+  });
+
+  it('n 次根号内含分数 \\sqrt[3]{\\frac{a}{b}}', () => {
+    const html = katexHtml(mrootN('3', mfrac('a', 'b')));
+    expect(convertHtml(html)).toBe('\\sqrt[3]{\\frac{a}{b}}');
+  });
+
+  it('n 次根号含多位根指数 \\sqrt[10]{x}', () => {
+    const html = katexHtml(mrootN('10', mordMathnormal('x')));
+    expect(convertHtml(html)).toBe('\\sqrt[10]{x}');
+  });
+
+  it('嵌套根号 \\sqrt{\\sqrt{x}}', () => {
+    const innerSqrt = msqrt(mordMathnormal('x'));
+    const html = katexHtml(msqrt(innerSqrt));
+    expect(convertHtml(html)).toBe('\\sqrt{\\sqrt{x}}');
+  });
+});
+
+// =================================================================
+// nulldelimiter 不可见分隔符
+// =================================================================
+describe('nulldelimiter 不可见分隔符', () => {
+  it('.mopen.nulldelimiter 不输出括号', () => {
+    // KaTeX 用 .mopen.nulldelimiter 作为 \frac 两侧的不可见占位
+    const html = katexHtml(`<span class="mopen nulldelimiter"></span>${mord('x')}`);
+    expect(convertHtml(html)).toBe('x');
+  });
+
+  it('.mclose.nulldelimiter 不输出括号', () => {
+    const html = katexHtml(`${mord('x')}<span class="mclose nulldelimiter"></span>`);
+    expect(convertHtml(html)).toBe('x');
+  });
+
+  it('分数两侧 nulldelimiter 不产生多余括号', () => {
+    // 完整的 KaTeX \frac{a}{b} 结构包含 nulldelimiter，不应产生 (\\frac{a}{b})
+    const html = katexHtml(mfrac('a', 'b'));
+    expect(convertHtml(html)).toBe('\\frac{a}{b}');
+  });
+
+  it('可见括号 .mopen（无 nulldelimiter）仍输出 (', () => {
+    const html = katexHtml(`<span class="mopen">(</span>${mord('x')}<span class="mclose">)</span>`);
+    expect(convertHtml(html)).toBe('(x)');
   });
 });
 
