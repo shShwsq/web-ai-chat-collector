@@ -285,8 +285,8 @@ describe('KaTeX 行内公式', () => {
     expect(latex).toBe('x^2');
   });
 
-  // 通过 convert 调用：.katex-mathml 被 NOISE_SELECTORS 移除，走 katex-html 降级路径
-  it('convert 整体转换：.katex-mathml 被移除，走 katex-html 降级路径', () => {
+  // 通过 convert 调用：annotation 被预提取到 data 属性，走无损优先路径
+  it('convert 整体转换：annotation 预提取，走无损优先路径', () => {
     const html = `<p>公式 <span class="katex">
       <span class="katex-mathml"><math><annotation encoding="application/x-tex">x^2</annotation></math></span>
       <span class="katex-html" aria-hidden="true">
@@ -299,7 +299,25 @@ describe('KaTeX 行内公式', () => {
       </span>
     </span> 结束</p>`;
     const md = convert(html);
-    // 走 katex-html 降级：输出 $x^{2}$
+    // 走 annotation 优先路径：输出原始 LaTeX $x^2$（而非反向解析的 $x^{2}$）
+    expect(md).toContain('$x^2$');
+    expect(md).not.toContain('$x^{2}$');
+  });
+
+  // 通过 convert 调用：无 annotation（Kimi 等平台），走 katex-html 反向解析降级路径
+  it('convert 整体转换：无 annotation 时走 katex-html 反向解析', () => {
+    const html = `<p>公式 <span class="katex">
+      <span class="katex-html" aria-hidden="true">
+        <span class="base">
+          <span class="mord mathnormal">x</span>
+          <span class="msupsub"><span class="vlist-t vlist-r"><span class="vlist">
+            <span style="top:-3.063em;"><span class="pstrut"></span><span class="mord mtight">2</span></span>
+          </span></span></span>
+        </span>
+      </span>
+    </span> 结束</p>`;
+    const md = convert(html);
+    // 无 annotation，走反向解析：输出 $x^{2}$
     expect(md).toContain('$x^{2}$');
   });
 
@@ -327,22 +345,23 @@ describe('KaTeX 块级公式', () => {
     expect(latex).toBe('\\int_0^1 x^2 dx');
   });
 
-  it('convert 块级公式：输出 $$...$$（前后空行）', () => {
+  it('convert 块级公式：annotation 预提取，输出 $$...$$（前后空行）', () => {
     const html = `<span class="katex-display">
       <span class="katex">
-        <span class="katex-mathml"><math><annotation encoding="application/x-tex">\\frac{1}{2}</annotation></math></span>
+        <span class="katex-mathml"><math><annotation encoding="application/x-tex">x^2</annotation></math></span>
         <span class="katex-html" aria-hidden="true">
           <span class="base">
-            <span class="mord"><span class="mfrac"><span class="vlist-t vlist-r"><span class="vlist">
-              <span style="top:-2.314em;"><span class="pstrut"></span><span class="mord mtight">2</span></span>
-              <span style="top:-3.23em;"><span class="pstrut"></span><span class="mord mtight">1</span></span>
-            </span></span></span></span>
+            <span class="mord mathnormal">x</span>
+            <span class="msupsub"><span class="vlist-t vlist-r"><span class="vlist">
+              <span style="top:-3.063em;"><span class="pstrut"></span><span class="mord mtight">2</span></span>
+            </span></span></span>
           </span>
         </span>
       </span>
     </span>`;
     const md = convert(html);
-    expect(md).toMatch(/^\$\$\\frac\{1\}\{2\}\$\$$/);
+    // 走 annotation 优先路径：输出原始 LaTeX $$x^2$$（而非反向解析的 $$x^{2}$$）
+    expect(md).toMatch(/^\$\$x\^2\$\$$/);
   });
 });
 
