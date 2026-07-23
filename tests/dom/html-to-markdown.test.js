@@ -330,6 +330,103 @@ describe('KaTeX 行内公式', () => {
 });
 
 // =================================================================
+// 豆包 copy-text 路径（行内公式 LaTeX 存在父容器属性，非 annotation）
+// =================================================================
+describe('豆包 copy-text 路径', () => {
+  // 豆包行内公式结构：
+  // <span class="container-xxx math-inline" copy-text="\(原始LaTeX\)">
+  //   <span class="katex">
+  //     <span class="katex-html">...</span>  ← 无 katex-mathml，无 annotation
+  //   </span>
+  // </span>
+
+  it('_extractRawLatex 直接调用：从父元素 copy-text 属性提取（行内 \\(...\\) 定界符）', () => {
+    const html = `<span class="math-inline" copy-text="\\(x^2 + y^2\\)">
+      <span class="katex">
+        <span class="katex-html" aria-hidden="true">
+          <span class="base"><span class="mord mathnormal">x</span></span>
+        </span>
+      </span>
+    </span>`;
+    const katexEl = makeRoot(html).querySelector('.katex');
+    const latex = HtmlToMarkdown._extractRawLatex(katexEl);
+    expect(latex).toBe('x^2 + y^2');
+  });
+
+  it('_extractRawLatex 直接调用：从父元素 copy-text 属性提取（块级 \\[...\\] 定界符）', () => {
+    const html = `<span class="math-block" copy-text="\\[\\frac{1}{2}\\]">
+      <span class="katex">
+        <span class="katex-html" aria-hidden="true">
+          <span class="base"><span class="mord"><span class="mfrac"></span></span></span>
+        </span>
+      </span>
+    </span>`;
+    const katexEl = makeRoot(html).querySelector('.katex');
+    const latex = HtmlToMarkdown._extractRawLatex(katexEl);
+    expect(latex).toBe('\\frac{1}{2}');
+  });
+
+  it('_extractRawLatex：annotation 优先于 copy-text', () => {
+    // 同时有 annotation 和 copy-text 时，应优先取 annotation
+    const html = `<span class="math-inline" copy-text="\\(from-copy-text\\)">
+      <span class="katex">
+        <span class="katex-mathml"><math><annotation encoding="application/x-tex">from-annotation</annotation></math></span>
+        <span class="katex-html"></span>
+      </span>
+    </span>`;
+    const katexEl = makeRoot(html).querySelector('.katex');
+    const latex = HtmlToMarkdown._extractRawLatex(katexEl);
+    expect(latex).toBe('from-annotation');
+  });
+
+  it('_extractRawLatex：无 annotation 且无 copy-text 时返回空字符串', () => {
+    const html = `<span class="katex">
+      <span class="katex-html" aria-hidden="true"><span class="base"></span></span>
+    </span>`;
+    const katexEl = makeRoot(html).querySelector('.katex');
+    const latex = HtmlToMarkdown._extractRawLatex(katexEl);
+    expect(latex).toBe('');
+  });
+
+  it('convert 整体转换：豆包行内公式走 copy-text 无损路径', () => {
+    // 豆包行内公式：copy-text 属性有原始 LaTeX，katex 无 annotation
+    const html = `<p>公式 <span class="container-wTfUs6 math-inline" copy-text="\\(\\frac{a^2 + b^2}{2}\\)">
+      <span class="katex">
+        <span class="katex-html" aria-hidden="true">
+          <span class="base">
+            <span class="mord"><span class="mfrac"><span class="vlist-t vlist-r"><span class="vlist">
+              <span style="top:-2.314em;"><span class="pstrut"></span><span class="mord mtight">2</span></span>
+              <span style="top:-3.23em;"><span class="pstrut"></span><span class="mord mtight">a</span></span>
+            </span></span></span></span>
+          </span>
+        </span>
+      </span>
+    </span> 结束</p>`;
+    const md = convert(html);
+    // 走 copy-text 路径：输出原始 LaTeX，而非反向解析的 \frac{a^{2} + b^{2}}{2}
+    expect(md).toContain('$\\frac{a^2 + b^2}{2}$');
+  });
+
+  it('convert 整体转换：豆包行内公式 copy-text 含复杂嵌套公式', () => {
+    // 使用豆包真实 copy-text 内容（含 \displaystyle \int \sum \sqrt 等命令）
+    const copyText = '\\(\\frac{\\displaystyle \\int_0^{\\pi/2} \\sin^n x \\, dx \\cdot \\sum_{k=0}^{\\infty} \\frac{(-1)^k}{(2k+1)!} x^{2k+1}}{\\sqrt{\\frac{a^2 + b^2}{2}}}\\)';
+    const html = `<p>公式 <span class="math-inline" copy-text="${copyText}">
+      <span class="katex">
+        <span class="katex-html" aria-hidden="true">
+          <span class="base"><span class="mord">复杂公式</span></span>
+        </span>
+      </span>
+    </span> 结束</p>`;
+    const md = convert(html);
+    // 走 copy-text 路径：输出原始 LaTeX（含 \displaystyle \int 等标准命令）
+    expect(md).toContain('\\displaystyle \\int_0^{\\pi/2}');
+    expect(md).toContain('\\sum_{k=0}^{\\infty}');
+    // 不应出现反向解析的特征（如 \int 不带参数或 Unicode 字符）
+    expect(md).not.toContain('∫0π');
+  });
+});
+
+// =================================================================
 // KaTeX 块级公式
 // =================================================================
 describe('KaTeX 块级公式', () => {
