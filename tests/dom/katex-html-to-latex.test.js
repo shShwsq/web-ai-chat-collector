@@ -509,4 +509,23 @@ describe('降级处理', () => {
     const result = convertHtml(html);
     expect(result).toContain('x');
   });
+
+  it('.vlist-s 零宽空格不泄漏到输出', () => {
+    // KaTeX 的 .vlist-s 元素 textContent 为 U+200B（零宽空格），用于布局间距
+    // 若被降级路径处理会污染输出，导致 KaTeX 重新渲染时报 unknownSymbol 警告
+    const html = katexHtml(
+      `${mordMathnormal('x')}<span class="vlist-s">\u200b</span>${mordMathnormal('y')}`
+    );
+    const result = convertHtml(html);
+    expect(result).toBe('xy');
+    expect(result).not.toContain('\u200b');
+  });
+
+  it('根号结构中 .vlist-s 不泄漏零宽空格', () => {
+    // msqrt fixture 已包含 .vlist-s，验证完整根号提取不产生 ZWSP
+    const html = katexHtml(msqrt(mordMathnormal('x')));
+    const result = convertHtml(html);
+    expect(result).toBe('\\sqrt{x}');
+    expect(result).not.toContain('\u200b');
+  });
 });

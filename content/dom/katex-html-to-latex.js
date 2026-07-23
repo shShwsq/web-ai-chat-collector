@@ -153,7 +153,8 @@
           result += this._processChildren(bases[i]);
         }
         // 压缩连续多空格为单个（.mspace 与 .mbin/.mrel 的空格会叠加）
-        return result.replace(/ {2,}/g, ' ').trim();
+        // 移除零宽空格 U+200B（KaTeX 布局元素可能残留，导致 KaTeX 重新渲染时报 unknownSymbol 警告）
+        return result.replace(/ {2,}/g, ' ').replace(/\u200b/g, '').trim();
       } catch (e) {
         console.warn('[KatexHtmlToLatex] 解析失败，降级为 textContent:', e);
         return katexHtmlEl.textContent.trim();
@@ -178,6 +179,8 @@
       if (/\bstrut\b/.test(cls)) return '';
       if (/\bmspace\b/.test(cls)) return ' ';
       if (/\bpstrut\b/.test(cls)) return '';
+      // .vlist-s 是 KaTeX vlist 的间距占位，textContent 为零宽空格 U+200B，不能进入输出
+      if (/\bvlist-s\b/.test(cls)) return '';
 
       // 上下标容器
       if (/\bmsupsub\b/.test(cls)) {
