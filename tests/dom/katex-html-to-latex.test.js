@@ -123,9 +123,29 @@ describe('基础字符与符号', () => {
     expect(convertHtml(html)).toBe('1 + 2');
   });
 
+  it('mbin × → \\times（查 OP_MAP）', () => {
+    const html = katexHtml(`${mordMathnormal('a')}${mbin('×')}${mordMathnormal('b')}`);
+    expect(convertHtml(html)).toBe('a \\times b');
+  });
+
+  it('mbin ÷ → \\div（查 OP_MAP）', () => {
+    const html = katexHtml(`${mord('1')}${mbin('÷')}${mord('2')}`);
+    expect(convertHtml(html)).toBe('1 \\div 2');
+  });
+
   it('关系符 = 两侧有空格', () => {
     const html = katexHtml(`${mord('x')}${mrel('=')}${mord('y')}`);
     expect(convertHtml(html)).toBe('x = y');
+  });
+
+  it('mrel ≥ → \\geq（查 OP_MAP）', () => {
+    const html = katexHtml(`${mord('x')}${mrel('≥')}${mord('0')}`);
+    expect(convertHtml(html)).toBe('x \\geq 0');
+  });
+
+  it('mrel ≈ → \\approx（查 OP_MAP）', () => {
+    const html = katexHtml(`${mordMathnormal('a')}${mrel('≈')}${mordMathnormal('b')}`);
+    expect(convertHtml(html)).toBe('a \\approx b');
   });
 
   it('strut 布局占位被忽略', () => {
@@ -257,17 +277,15 @@ describe('操作符 OP_MAP 查表', () => {
     expect(convertHtml(html)).toBe('\\infty');
   });
 
-  it('不等 ≠（已知限制：mrel 不查 OP_MAP，原样输出 Unicode 符号）', () => {
-    // _processNode 中 mrel/mbin/mpunct 走 _nodeText 而非 _textWithOpMap
-    // 因此 ≤ ≥ ≠ ≈ 等关系符不被转为 LaTeX 命令，输出 Unicode 原字符
-    // 这是源码的已知限制，未来修复后此测试需同步更新
+  it('不等 ≠ → \\neq（mrel 查 OP_MAP）', () => {
+    // _processNode 中 mrel/mbin/mpunct 走 _textWithOpMap，将 ≤ ≥ ≠ 等转为 LaTeX 命令
     const html = katexHtml(`${mord('x')}${mrel('≠')}${mord('y')}`);
-    expect(convertHtml(html)).toBe('x ≠ y');
+    expect(convertHtml(html)).toBe('x \\neq y');
   });
 
-  it('小于等于 ≤（已知限制：同 ≠ 不查 OP_MAP）', () => {
+  it('小于等于 ≤ → \\leq（mrel 查 OP_MAP）', () => {
     const html = katexHtml(`${mord('x')}${mrel('≤')}${mord('y')}`);
-    expect(convertHtml(html)).toBe('x ≤ y');
+    expect(convertHtml(html)).toBe('x \\leq y');
   });
 });
 

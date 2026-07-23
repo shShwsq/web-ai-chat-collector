@@ -222,18 +222,21 @@
       }
 
       // 二元运算符（+ − × ÷ 等）
+      // 查 OP_MAP：× → \times、÷ → \div、± → \pm 等
       if (/\bmbin\b/.test(cls)) {
-        return ' ' + this._nodeText(node) + ' ';
+        return ' ' + this._textWithOpMap(node) + ' ';
       }
 
       // 关系符（= < > ≤ ≥ ≠）
+      // 查 OP_MAP：≤ → \leq、≥ → \geq、≠ → \neq 等
       if (/\bmrel\b/.test(cls)) {
-        return ' ' + this._nodeText(node) + ' ';
+        return ' ' + this._textWithOpMap(node) + ' ';
       }
 
       // 标点
+      // 查 OP_MAP：… → \dots 等
       if (/\bmpunct\b/.test(cls)) {
-        return this._nodeText(node) + ' ';
+        return this._textWithOpMap(node) + ' ';
       }
 
       // 普通字符 .mord（可能是叶子，也可能嵌套，如 .mord > .mord.mathnormal + .msupsub）
