@@ -5,11 +5,12 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadDb } from '../helpers/load-source.js';
 
-let _stripAugmentBlocks, tokenize, highlightSearchResult;
+let _stripAugmentBlocks, _reorderByDomOrder, tokenize, highlightSearchResult;
 
 beforeAll(() => {
   const lib = loadDb();
   _stripAugmentBlocks = lib._stripAugmentBlocks;
+  _reorderByDomOrder = lib._reorderByDomOrder;
   tokenize = lib.tokenize;
   highlightSearchResult = lib.highlightSearchResult;
 });
@@ -211,5 +212,132 @@ describe('highlightSearchResult', () => {
     const result = highlightSearchResult(messages, 'hello');
     expect(result[0].highlighted).toBe('<mark>hello</mark>');
     expect(result[1].highlighted).toBe('world <mark>hello</mark>');
+  });
+});
+
+// =================================================================
+// _reorderByDomOrder：按 DOM 快照顺序重排消息（修复滚动加载顺序错乱）
+// 场景：DOM 模式下 exporter-base.js 只把"未见过的消息"发给 db，db push 到末尾会
+// 把向上滚动加载的旧消息错误地放到对话末尾。domOrder 是当前 DOM 完整快照的 hash 顺序。
+// =================================================================
+describe('_reorderByDomOrder', () => {
+  // 构造消息对象：{ role, content, hash }
+  const mkMsg = (hash, role = 'user') => ({ role, content: `msg-${hash}`, hash });
+
+  // 取 hash 数组，便于断言顺序
+  const hashes = (msgs) => msgs.map(m => m.hash);
+
+  it('空 existing 返回空数组', () => {
+    expect(_reorderByDomOrder([], ['a', 'b'])).toEqual([]);
+  });
+
+  it('domOrder 为空数组时保持原顺序', () => {
+    const existing = [mkMsg('a'), mkMsg('b'), mkMsg('c')];
+    expect(_reorderByDomOrder(existing, [])).toEqual(existing);
+  });
+
+  it('domOrder 非数组时保持原顺序', () => {
+    const existing = [mkMsg('a'), mkMsg('b')];
+    expect(_reorderByDomOrder(existing, null)).toEqual(existing);
+    expect(_reorderByDomOrder(existing, undefined)).toEqual(existing);
+    expect(_reorderByDomOrder(existing, 'abc')).toEqual(existing);
+  });
+
+  it('domOrder 与 existing 无交集时保持原顺序', () => {
+    const existing = [mkMsg('a'), mkMsg('b')];
+    // domOrder 里的 hash 都不在 existing 中（数据不一致）
+    expect(_reorderByDomOrder(existing, ['x', 'y'])).toEqual(existing);
+  });
+
+  // 核心场景：向上滚动加载更早的旧消息
+  // existing=[A,B,C]，新增 X（应在最前），DOM=[X,A,B]
+  // 模拟 db 追加：push X 到末尾 → [A,B,C,X]，再重排
+  it('向上滚动：旧消息 X 被错误 push 到末尾后，重排回最前', () => {
+    const existing = [mkMsg('A'), mkMsg('B'), mkMsg('C')];
+    const newMsg = mkMsg('X');
+    const domOrder = ['X', 'A', 'B'];  // 当前 DOM 快照顺序
+
+    // 模拟 db.js 的 push 追加（错误顺序）
+    const afterPush = [...existing, newMsg];
+    // 重排
+    const result = _reorderByDomOrder(afterPush, domOrder);
+    expect(hashes(result)).toEqual(['X', 'A', 'B', 'C']);
+  });
+
+  // 向下滚动加载新消息
+  // existing=[A,B,C]，新增 Y（应在最后），DOM=[B,C,Y]
+  it('向下滚动：新消息 Y 追加到末尾，重排后保持正确顺序', () => {
+    const existing = [mkMsg('A'), mkMsg('B'), mkMsg('C')];
+    const newMsg = mkMsg('Y');
+    const domOrder = ['B', 'C', 'Y'];
+
+    const afterPush = [...existing, newMsg];
+    const result = _reorderByDomOrder(afterPush, domOrder);
+    expect(hashes(result)).toEqual(['A', 'B', 'C', 'Y']);
+  });
+
+  // 中间滚动：existing 中有滚出视图的旧消息，DOM 只看到中间一段
+  // existing=[A,B,C,D,E]，新增 X 在中间，DOM=[B,X,C,D]
+  it('中间滚动：DOM 只看到中段，orphan 按原相对位置分前后', () => {
+    const existing = [mkMsg('A'), mkMsg('B'), mkMsg('C'), mkMsg('D'), mkMsg('E')];
+    const newMsg = mkMsg('X');
+    const domOrder = ['B', 'X', 'C', 'D'];
+
+    const afterPush = [...existing, newMsg];
+    const result = _reorderByDomOrder(afterPush, domOrder);
+    // A 在锚点 B 之前 → beforeOrphan；E 在锚点之后 → afterOrphan
+    expect(hashes(result)).toEqual(['A', 'B', 'X', 'C', 'D', 'E']);
+  });
+
+  // domOrder 包含 existing 全部消息：完全按 domOrder 排列
+  it('domOrder 覆盖全部消息时，完全按 domOrder 顺序排列', () => {
+    const existing = [mkMsg('A'), mkMsg('B'), mkMsg('C')];
+    const domOrder = ['C', 'A', 'B'];  // 完全不同的顺序
+    const result = _reorderByDomOrder(existing, domOrder);
+    expect(hashes(result)).toEqual(['C', 'A', 'B']);
+  });
+
+  // domOrder 含重复 hash：去重，不重复输出
+  it('domOrder 含重复 hash 时去重', () => {
+    const existing = [mkMsg('A'), mkMsg('B'), mkMsg('C')];
+    const domOrder = ['A', 'A', 'B', 'B', 'C'];
+    const result = _reorderByDomOrder(existing, domOrder);
+    expect(hashes(result)).toEqual(['A', 'B', 'C']);
+  });
+
+  // 多次滚动场景：先向下滚加载 Y，再向上滚加载 X
+  // 第一次：existing=[A,B,C] + Y, domOrder=[B,C,Y] → [A,B,C,Y]
+  // 第二次：existing=[A,B,C,Y] + X, domOrder=[X,A,B] → [X,A,B,C,Y]
+  it('连续滚动：先向下加载 Y 再向上加载 X，顺序始终正确', () => {
+    let existing = [mkMsg('A'), mkMsg('B'), mkMsg('C')];
+
+    // 第一次：向下滚，加载 Y
+    const newY = mkMsg('Y');
+    existing = _reorderByDomOrder([...existing, newY], ['B', 'C', 'Y']);
+    expect(hashes(existing)).toEqual(['A', 'B', 'C', 'Y']);
+
+    // 第二次：向上滚，加载 X
+    const newX = mkMsg('X');
+    existing = _reorderByDomOrder([...existing, newX], ['X', 'A', 'B']);
+    expect(hashes(existing)).toEqual(['X', 'A', 'B', 'C', 'Y']);
+  });
+
+  // 虚拟列表场景：domOrder 只含部分消息，existing 有滚出视图的旧消息在两端
+  // existing=[A,B,C,D,E]，DOM=[C,D]（只看到中间），无新消息
+  // 但此时 domOrder=[C,D]，重排后应保持 [A,B,C,D,E]（A,B 在锚点前；E 在锚点后）
+  it('虚拟列表：domOrder 只含中段，两端 orphan 保持原位', () => {
+    const existing = [mkMsg('A'), mkMsg('B'), mkMsg('C'), mkMsg('D'), mkMsg('E')];
+    const domOrder = ['C', 'D'];
+    const result = _reorderByDomOrder(existing, domOrder);
+    expect(hashes(result)).toEqual(['A', 'B', 'C', 'D', 'E']);
+  });
+
+  // 不修改原数组（返回新数组）
+  it('不修改原数组', () => {
+    const existing = [mkMsg('A'), mkMsg('B'), mkMsg('C')];
+    const domOrder = ['C', 'A', 'B'];
+    const originalHashes = hashes(existing);
+    _reorderByDomOrder(existing, domOrder);
+    expect(hashes(existing)).toEqual(originalHashes);
   });
 });
