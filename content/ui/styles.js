@@ -48,16 +48,8 @@ const AIChatStyles = {
     style.textContent = this.mainCSS;
     document.head.appendChild(style);
 
-    // 动态加载 KaTeX CSS
-    const katexCss = document.createElement('link');
-    katexCss.rel = 'stylesheet';
-    katexCss.href = chrome.runtime.getURL('lib/katex.min.css');
-    document.head.appendChild(katexCss);
-
-    // 数学公式额外样式
-    const mathStyle = document.createElement('style');
-    mathStyle.textContent = this.mathCSS;
-    document.head.appendChild(mathStyle);
+    // KaTeX CSS 与 viewer 公式样式改由各 shadow DOM 内部加载（viewer.js / ai-ball.js），
+    // head 全局样式无法穿透 shadow 边界，在 head 中注入已无意义
   },
 
   mainCSS: `
@@ -343,16 +335,23 @@ const AIChatStyles = {
       #ai-chat-panel .conv-item .conv-btns .btn-view:hover {
         background: #e0f2fe;
       }
-      /* 完整对话查看弹窗 - 浮动面板 */
-      #ai-chat-viewer {
+    `,
+
+  // viewerCSS: 注入到 viewer 的 shadow DOM 内，与宿主页样式双向隔离
+  // :host 控制 host 元素（#ai-chat-viewer-host）的定位与显隐
+  // viewer-box 显式设置 font-family/color，阻断宿主页继承
+  viewerCSS: `
+      :host {
         position: fixed;
         z-index: 2147483647;
         display: none;
       }
-      #ai-chat-viewer.open {
+      :host(.open) {
         display: block;
       }
       #ai-chat-viewer .viewer-box {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        color: #1a1a1a;
         position: fixed;
         width: 680px;
         max-width: 90vw;
