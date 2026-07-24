@@ -23,11 +23,30 @@ if (typeof marked !== 'undefined') {
 
 class ConversationViewer {
   constructor() {
+    this.host = null;
+    this.shadow = null;
     this.viewer = null;
     this.createViewer();
   }
 
   createViewer() {
+    // Shadow DOM 隔离：viewer 样式与宿主页互不影响
+    this.host = document.createElement('div');
+    this.host.id = 'ai-chat-viewer-host';
+    this.shadow = this.host.attachShadow({ mode: 'open' });
+
+    // viewer 样式（:host 定位/显隐 + viewer 内部规则 + 公式样式）注入 shadow 内
+    const style = document.createElement('style');
+    style.textContent = (AIChatStyles.viewerCSS || '') + '\n' + (AIChatStyles.mathCSS || '');
+    this.shadow.appendChild(style);
+
+    // KaTeX CSS 需在 shadow 内加载——head 全局样式无法穿透 shadow 边界
+    const katexCss = document.createElement('link');
+    katexCss.rel = 'stylesheet';
+    katexCss.href = chrome.runtime.getURL('lib/katex.min.css');
+    this.shadow.appendChild(katexCss);
+
+    // viewer 结构
     this.viewer = document.createElement('div');
     this.viewer.id = 'ai-chat-viewer';
     this.viewer.innerHTML = `
@@ -39,7 +58,9 @@ class ConversationViewer {
         <div class="viewer-body" id="acc-viewer-body"></div>
       </div>
     `;
-    document.body.appendChild(this.viewer);
+    this.shadow.appendChild(this.viewer);
+    document.body.appendChild(this.host);
+
     this.viewer.querySelector('.close-btn').addEventListener('click', () => this.close());
 
     // 事件委托：点击 .collapsible-header 切换折叠（思考过程 / 搜索来源）
@@ -55,6 +76,8 @@ class ConversationViewer {
     });
 
     // 弹窗拖拽（通过 header 拖动）
+    // makeDraggable 在 document 上监听 mousemove/mouseup，shadow 内的 mousedown 事件
+    // 会冒泡到 document，拖拽不受 shadow 边界影响
     const viewerBox = this.viewer.querySelector('.viewer-box');
     makeDraggable(viewerBox, this.viewer.querySelector('.viewer-header'));
   }
@@ -74,7 +97,7 @@ class ConversationViewer {
         <div class="msg-content">${contentHtml}</div>
       </div>`;
     }).join('');
-    this.viewer.classList.add('open');
+    this.host.classList.add('open');
 
     // 居中定位
     const viewerBox = this.viewer.querySelector('.viewer-box');
@@ -85,7 +108,7 @@ class ConversationViewer {
   }
 
   close() {
-    this.viewer.classList.remove('open');
+    this.host.classList.remove('open');
   }
 
   renderContent(content) {
