@@ -465,7 +465,11 @@ class ChatExporterBase {
         messages: newMessages.map(m => ({
           ...m,
           hash: this.messageHash(m.role, m.content)
-        }))
+        })),
+        // DOM 模式滚动加载场景下，newMessages 只是当前 DOM 中"未见过的"消息，
+        // 直接 push 到末尾会导致向上滚动加载的旧消息被错误追加到对话末尾。
+        // 传入当前 DOM 完整快照的 hash 顺序，供 db.js 按真实位置重排合并。
+        domOrder: conversation.messages.map(m => this.messageHash(m.role, m.content))
       };
       
       await this.saveConversation(convData);

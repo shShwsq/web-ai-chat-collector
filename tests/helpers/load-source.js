@@ -93,6 +93,7 @@ export function loadDb() {
   runInWindow(path.join(ROOT, 'lib', 'db.js'));
   return {
     _stripAugmentBlocks: window._stripAugmentBlocks.bind(window),
+    _reorderByDomOrder: window._reorderByDomOrder.bind(window),
     tokenize: window.tokenize.bind(window),
     highlightSearchResult: window.highlightSearchResult.bind(window)
   };
