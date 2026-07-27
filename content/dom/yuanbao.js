@@ -16,14 +16,15 @@
 //             .agent-chat__bubble--ai
 //               .agent-chat__conv--ai__speech_show
 //                 形态A（深度搜索）: .hyc-component-deepsearch-cot
-//                   .hyc-component-deepsearch-cot__think__content
-//                     .__item-text                  思考步骤（多个）
-//                       .hyc-common-markdown-style-cot > .ybc-p
-//                     .__item-search                搜索结果块
-//                       .__doc-container > .__doc__title__text
-//                     .__item-text.__item--last     最后一步思考
-//                 形态A 正式回答: .hyc-content-md-done（思考块之后）
-//                   .hyc-common-markdown-style > .ybc-p / .ybc-ul-component / blockquote
+//                   .hyc-component-deepsearch-cot__think
+//                     .hyc-component-deepsearch-cot__think__content
+//                       .__item-text                  思考步骤（多个）
+//                         .hyc-common-markdown-style-cot > .ybc-p
+//                       .__item-search                搜索结果块
+//                         .__doc-container > .__doc__title__text
+//                       .__item-text.__item--last     最后一步思考
+//                   .hyc-content-md-done（正式回答，在 deepsearch-cot 内但不在 __think 内）
+//                     .hyc-common-markdown-style > .ybc-p / .ybc-ul-component / blockquote
 //                 形态B（Agent模式）: .hyc-component-deep-search-agent--v2
 //                   .agent-process-timeline
 //                     .agent-process-timeline_textComponent  文字说明步骤
@@ -196,15 +197,16 @@ DOM_ADAPTERS.yuanbao = {
     }
 
     // 2. 提取正式回答
-    // 正式回答在 .agent-chat__conv--ai__speech_show 内，但不在 .hyc-component-deepsearch-cot 内
-    // 选取所有 .hyc-content-md-done，排除位于 deepsearch-cot 内的
+    // 正式回答 .hyc-content-md-done 位于 .hyc-component-deepsearch-cot 内部（但在 __think 外部），
+    // 思考步骤的 .hyc-content-md-done 位于 __think 内部。
+    // 选取所有 .hyc-content-md-done，排除位于 __think 内的（即思考步骤），保留正式回答。
     const speechShow = el.querySelector('.agent-chat__conv--ai__speech_show');
     if (speechShow) {
       const allMdDones = speechShow.querySelectorAll('.hyc-content-md-done');
       const answerParts = [];
       for (const md of allMdDones) {
-        // 跳过位于思考块内的（思考步骤的 markdown 也有 -done 后缀）
-        if (md.closest('.hyc-component-deepsearch-cot')) continue;
+        // 跳过位于思考步骤内的（思考步骤的 markdown 也有 -done 后缀，但在 __think 内）
+        if (md.closest('.hyc-component-deepsearch-cot__think')) continue;
         // 跳过位于 Agent timeline 内的
         if (md.closest('.hyc-component-deep-search-agent')) continue;
         const text = DOM_ADAPTERS.yuanbao._extractMarkdownText(md);

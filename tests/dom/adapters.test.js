@@ -815,8 +815,9 @@ describe('腾讯元宝适配器', () => {
   });
 
   it('extractMessages 形态A：深度搜索（思考+搜索结果+正式回答）', () => {
-    // 真实场景（yuanbao.txt）：.hyc-component-deepsearch-cot 内含思考步骤 __item-text 与搜索结果 __item-search；
-    // 正式回答在 .agent-chat__conv--ai__speech_show 内的 .hyc-content-md-done，需排除位于 deepsearch-cot 内的同名节点
+    // 真实场景（yuanbao.txt）：.hyc-component-deepsearch-cot 内含 __think（思考步骤+搜索结果），
+    // 正式回答 .hyc-content-md-done 也在 .hyc-component-deepsearch-cot 内，但在 __think 外（兄弟关系）。
+    // 适配器用 closest('.hyc-component-deepsearch-cot__think') 排除思考步骤，保留正式回答。
     document.body.innerHTML = `
       <div class="agent-chat__list__content">
         <div class="agent-chat__list__item agent-chat__list__item--human" data-conv-speaker="human">
@@ -828,35 +829,37 @@ describe('腾讯元宝适配器', () => {
           <div class="agent-chat__bubble--ai">
             <div class="agent-chat__conv--ai__speech_show">
               <div class="hyc-component-deepsearch-cot">
-                <div class="hyc-component-deepsearch-cot__think__content">
-                  <div class="hyc-component-deepsearch-cot__think__content__item hyc-component-deepsearch-cot__think__content__item-text">
-                    <div class="hyc-content-md hyc-content-md-done">
-                      <div class="hyc-common-markdown hyc-common-markdown-style-cot">
-                        <div class="ybc-p">用户问的是今天上海是否下雨，需检索天气数据</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="hyc-component-deepsearch-cot__think__content__item hyc-component-deepsearch-cot__think__content__item-search">
-                    <div class="hyc-component-deepsearch-cot__think__content__item__doc-container">
-                      <div class="hyc-component-deepsearch-cot__think__content__item__doc">
-                        <div class="hyc-component-deepsearch-cot__think__content__item__doc__title">
-                          <span class="hyc-component-deepsearch-cot__think__content__item__doc__title__text">上海天气预报</span>
+                <div class="hyc-component-deepsearch-cot__think">
+                  <div class="hyc-component-deepsearch-cot__think__content">
+                    <div class="hyc-component-deepsearch-cot__think__content__item hyc-component-deepsearch-cot__think__content__item-text">
+                      <div class="hyc-content-md hyc-content-md-done">
+                        <div class="hyc-common-markdown hyc-common-markdown-style-cot">
+                          <div class="ybc-p">用户问的是今天上海是否下雨，需检索天气数据</div>
                         </div>
                       </div>
                     </div>
-                    <div class="hyc-component-deepsearch-cot__think__content__item__doc-container">
-                      <div class="hyc-component-deepsearch-cot__think__content__item__doc">
-                        <div class="hyc-component-deepsearch-cot__think__content__item__doc__title">
-                          <span class="hyc-component-deepsearch-cot__think__content__item__doc__title__text">7月27日上海早新闻</span>
+                    <div class="hyc-component-deepsearch-cot__think__content__item hyc-component-deepsearch-cot__think__content__item-search">
+                      <div class="hyc-component-deepsearch-cot__think__content__item__doc-container">
+                        <div class="hyc-component-deepsearch-cot__think__content__item__doc">
+                          <div class="hyc-component-deepsearch-cot__think__content__item__doc__title">
+                            <span class="hyc-component-deepsearch-cot__think__content__item__doc__title__text">上海天气预报</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="hyc-component-deepsearch-cot__think__content__item__doc-container">
+                        <div class="hyc-component-deepsearch-cot__think__content__item__doc">
+                          <div class="hyc-component-deepsearch-cot__think__content__item__doc__title">
+                            <span class="hyc-component-deepsearch-cot__think__content__item__doc__title__text">7月27日上海早新闻</span>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              <div class="hyc-content-md hyc-content-md-done">
-                <div class="hyc-common-markdown hyc-common-markdown-style">
-                  <div class="ybc-p">今天上海<strong>目前没下雨</strong>，但午后局部地区可能有短时阵雨。</div>
+                <div class="hyc-content-md hyc-content-md-done">
+                  <div class="hyc-common-markdown hyc-common-markdown-style">
+                    <div class="ybc-p">今天上海<strong>目前没下雨</strong>，但午后局部地区可能有短时阵雨。</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -982,15 +985,17 @@ describe('腾讯元宝适配器', () => {
           <div class="agent-chat__bubble--ai">
             <div class="agent-chat__conv--ai__speech_show">
               <div class="hyc-component-deepsearch-cot">
-                <div class="hyc-component-deepsearch-cot__think__content">
-                  <div class="hyc-component-deepsearch-cot__think__content__item hyc-component-deepsearch-cot__think__content__item-text">
-                    <div class="hyc-content-md hyc-content-md-done">
-                      <div class="hyc-common-markdown hyc-common-markdown-style-cot">
-                        <div class="ybc-p">降水概率 0%
-                          <div class="hyc-common-markdown__ref-list">
-                            <div class="hyc-common-markdown__ref-list__trigger">
-                              <div class="hyc-common-markdown__ref-list__item">
-                                <img src="https://example.com/icon.png">
+                <div class="hyc-component-deepsearch-cot__think">
+                  <div class="hyc-component-deepsearch-cot__think__content">
+                    <div class="hyc-component-deepsearch-cot__think__content__item hyc-component-deepsearch-cot__think__content__item-text">
+                      <div class="hyc-content-md hyc-content-md-done">
+                        <div class="hyc-common-markdown hyc-common-markdown-style-cot">
+                          <div class="ybc-p">降水概率 0%
+                            <div class="hyc-common-markdown__ref-list">
+                              <div class="hyc-common-markdown__ref-list__trigger">
+                                <div class="hyc-common-markdown__ref-list__item">
+                                  <img src="https://example.com/icon.png">
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -999,10 +1004,10 @@ describe('腾讯元宝适配器', () => {
                     </div>
                   </div>
                 </div>
-              </div>
-              <div class="hyc-content-md hyc-content-md-done">
-                <div class="hyc-common-markdown hyc-common-markdown-style">
-                  <div class="ybc-p">正式回答</div>
+                <div class="hyc-content-md hyc-content-md-done">
+                  <div class="hyc-common-markdown hyc-common-markdown-style">
+                    <div class="ybc-p">正式回答</div>
+                  </div>
                 </div>
               </div>
             </div>
