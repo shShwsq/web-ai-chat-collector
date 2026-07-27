@@ -1,5 +1,5 @@
 // tests/dom/adapters.test.js
-// 5 个平台 DOM 适配器测试：kimi / deepseek / qianwen / fudan / doubao
+// 6 个平台 DOM 适配器测试：kimi / deepseek / qianwen / fudan / doubao / yuanbao
 //
 // 这是"平台 DOM 改了立刻发现"的核心防线：
 // 每个平台用 1-2 个最小 DOM fixture 覆盖 getConversationId / getTitle / isStreaming / extractMessages。
@@ -11,15 +11,16 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { loadDomAdapter } from '../helpers/load-source.js';
 
-let kimi, deepseek, qianwen, fudan, doubao;
+let kimi, deepseek, qianwen, fudan, doubao, yuanbao;
 
 beforeAll(() => {
-  // 分别加载 5 个平台适配器（每次都会重新加载 turndown + html-to-markdown + katex-html-to-latex）
+  // 分别加载 6 个平台适配器（每次都会重新加载 turndown + html-to-markdown + katex-html-to-latex）
   kimi = loadDomAdapter('kimi');
   deepseek = loadDomAdapter('deepseek');
   qianwen = loadDomAdapter('qianwen');
   fudan = loadDomAdapter('fudan');
   doubao = loadDomAdapter('doubao');
+  yuanbao = loadDomAdapter('yuanbao');
 });
 
 // 重置 jsdom 环境（每个测试前清空 body + 重置 location/title）
@@ -720,5 +721,302 @@ describe('豆包适配器', () => {
     // 关键断言：正式回答被提取，且标题噪声"参考 3 篇资料"不出现在最终内容中
     expect(msgs[0].content).toContain('正式回答');
     expect(msgs[0].content).not.toContain('参考 3 篇资料');
+  });
+});
+
+// =================================================================
+// 腾讯元宝适配器
+// =================================================================
+describe('腾讯元宝适配器', () => {
+  beforeEach(() => resetEnv('/chat/naQivTmsDa/0P71bwF3Gl6', '', '上海今日天气与降雨情况'));
+
+  it('getConversationId 从 /chat/{agentId}/{convId} 提取第二段', () => {
+    // URL 格式: https://yuanbao.tencent.com/chat/{agentId}/{convId}
+    // 适配器只提取第二段（convId），忽略第一段（agentId）
+    expect(yuanbao.getConversationId()).toBe('0P71bwF3Gl6');
+  });
+
+  it('getConversationId 第二段缺失时返回 default', () => {
+    resetEnv('/chat/naQivTmsDa/');
+    expect(yuanbao.getConversationId()).toBe('default');
+  });
+
+  it('getConversationId 无 /chat/ 前缀时返回 default', () => {
+    resetEnv('/');
+    expect(yuanbao.getConversationId()).toBe('default');
+  });
+
+  it('getTitle 对话页直接返回 document.title', () => {
+    expect(yuanbao.getTitle()).toBe('上海今日天气与降雨情况');
+  });
+
+  it('getTitle 首页标题"元宝 - 轻松工作 多点生活"返回"未命名对话"', () => {
+    resetEnv('/', '', '元宝 - 轻松工作 多点生活');
+    expect(yuanbao.getTitle()).toBe('未命名对话');
+  });
+
+  it('getTitle 空标题时返回"未命名对话"', () => {
+    resetEnv('/chat/abc/def', '', '');
+    expect(yuanbao.getTitle()).toBe('未命名对话');
+  });
+
+  it('isStreaming 无消息时返回 false', () => {
+    expect(yuanbao.isStreaming()).toBe(false);
+  });
+
+  it('isStreaming 最后消息 data-conv-outputting="true" 时为 true', () => {
+    document.body.innerHTML = `
+      <div class="agent-chat__list__item" data-conv-outputting="false"></div>
+      <div class="agent-chat__list__item" data-conv-outputting="true"></div>`;
+    expect(yuanbao.isStreaming()).toBe(true);
+  });
+
+  it('isStreaming 最后消息 data-conv-status="running" 时为 true', () => {
+    document.body.innerHTML = `
+      <div class="agent-chat__list__item" data-conv-status="finished"></div>
+      <div class="agent-chat__list__item" data-conv-status="running"></div>`;
+    expect(yuanbao.isStreaming()).toBe(true);
+  });
+
+  it('isStreaming 最后消息含 .hyc-content-md（无 -done 后缀）时为 true', () => {
+    // 兜底信号：流式生成中存在未完成的 markdown 段（class 含 hyc-content-md 但不含 hyc-content-md-done）
+    document.body.innerHTML = `
+      <div class="agent-chat__list__item">
+        <div class="hyc-content-md"></div>
+      </div>`;
+    expect(yuanbao.isStreaming()).toBe(true);
+  });
+
+  it('isStreaming 已完成消息（outputting=false, status=finished, 全 -done）时为 false', () => {
+    document.body.innerHTML = `
+      <div class="agent-chat__list__item" data-conv-outputting="false" data-conv-status="finished">
+        <div class="hyc-content-md hyc-content-md-done"></div>
+      </div>`;
+    expect(yuanbao.isStreaming()).toBe(false);
+  });
+
+  it('extractMessages 提取用户消息（.hyc-content-text）', () => {
+    document.body.innerHTML = `
+      <div class="agent-chat__list__content">
+        <div class="agent-chat__list__item agent-chat__list__item--human" data-conv-speaker="human">
+          <div class="agent-chat__bubble--human">
+            <div class="agent-chat__bubble__content">
+              <div class="hyc-component-text">
+                <div class="hyc-content-text">今天上海下雨吗</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = yuanbao.extractMessages();
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe('user');
+    expect(msgs[0].content).toBe('今天上海下雨吗');
+  });
+
+  it('extractMessages 形态A：深度搜索（思考+搜索结果+正式回答）', () => {
+    // 真实场景（yuanbao.txt）：.hyc-component-deepsearch-cot 内含思考步骤 __item-text 与搜索结果 __item-search；
+    // 正式回答在 .agent-chat__conv--ai__speech_show 内的 .hyc-content-md-done，需排除位于 deepsearch-cot 内的同名节点
+    document.body.innerHTML = `
+      <div class="agent-chat__list__content">
+        <div class="agent-chat__list__item agent-chat__list__item--human" data-conv-speaker="human">
+          <div class="agent-chat__bubble--human">
+            <div class="hyc-component-text"><div class="hyc-content-text">今天上海下雨吗</div></div>
+          </div>
+        </div>
+        <div class="agent-chat__list__item agent-chat__list__item--ai" data-conv-speaker="ai">
+          <div class="agent-chat__bubble--ai">
+            <div class="agent-chat__conv--ai__speech_show">
+              <div class="hyc-component-deepsearch-cot">
+                <div class="hyc-component-deepsearch-cot__think__content">
+                  <div class="hyc-component-deepsearch-cot__think__content__item hyc-component-deepsearch-cot__think__content__item-text">
+                    <div class="hyc-content-md hyc-content-md-done">
+                      <div class="hyc-common-markdown hyc-common-markdown-style-cot">
+                        <div class="ybc-p">用户问的是今天上海是否下雨，需检索天气数据</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="hyc-component-deepsearch-cot__think__content__item hyc-component-deepsearch-cot__think__content__item-search">
+                    <div class="hyc-component-deepsearch-cot__think__content__item__doc-container">
+                      <div class="hyc-component-deepsearch-cot__think__content__item__doc">
+                        <div class="hyc-component-deepsearch-cot__think__content__item__doc__title">
+                          <span class="hyc-component-deepsearch-cot__think__content__item__doc__title__text">上海天气预报</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="hyc-component-deepsearch-cot__think__content__item__doc-container">
+                      <div class="hyc-component-deepsearch-cot__think__content__item__doc">
+                        <div class="hyc-component-deepsearch-cot__think__content__item__doc__title">
+                          <span class="hyc-component-deepsearch-cot__think__content__item__doc__title__text">7月27日上海早新闻</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="hyc-content-md hyc-content-md-done">
+                <div class="hyc-common-markdown hyc-common-markdown-style">
+                  <div class="ybc-p">今天上海<strong>目前没下雨</strong>，但午后局部地区可能有短时阵雨。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = yuanbao.extractMessages();
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0].role).toBe('user');
+    expect(msgs[0].content).toBe('今天上海下雨吗');
+    expect(msgs[1].role).toBe('assistant');
+    // 思考被 think 块包裹
+    expect(msgs[1].content).toContain(THINK_OPEN);
+    expect(msgs[1].content).toContain(THINK_CLOSE);
+    expect(msgs[1].content).toContain('用户问的是今天上海是否下雨');
+    // 搜索结果被 search_result 块包裹，仅含标题（不含 URL）
+    expect(msgs[1].content).toContain('<search_result>');
+    expect(msgs[1].content).toContain('</search_result>');
+    expect(msgs[1].content).toContain('上海天气预报');
+    expect(msgs[1].content).toContain('7月27日上海早新闻');
+    // 正式回答保留，strong 标签转 markdown
+    expect(msgs[1].content).toContain('目前没下雨');
+    expect(msgs[1].content).toContain('**');
+  });
+
+  it('extractMessages 形态C：简单回答（仅 .hyc-content-md-done，无思考块）', () => {
+    document.body.innerHTML = `
+      <div class="agent-chat__list__content">
+        <div class="agent-chat__list__item agent-chat__list__item--ai" data-conv-speaker="ai">
+          <div class="agent-chat__bubble--ai">
+            <div class="agent-chat__conv--ai__speech_show">
+              <div class="hyc-content-md hyc-content-md-done">
+                <div class="hyc-common-markdown hyc-common-markdown-style">
+                  <div class="ybc-p">直接回答，无思考过程</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = yuanbao.extractMessages();
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe('assistant');
+    expect(msgs[0].content).toBe('直接回答，无思考过程');
+    // 无思考块时不生成 think 标签
+    expect(msgs[0].content).not.toContain(THINK_OPEN);
+  });
+
+  it('extractMessages 形态B：Agent 模式（仅采集文字步骤，不包 think 块）', () => {
+    // Agent 模式：.hyc-component-deep-search-agent 内 .agent-process-timeline
+    //   textComponent → 文字说明（作为正文）
+    //   group → 操作分组标题（作为 **粗体** 步骤标题）
+    // 全部作为正文输出，不包 think 块（用户确认 Agent 模式的文字说明即回答内容）
+    document.body.innerHTML = `
+      <div class="agent-chat__list__content">
+        <div class="agent-chat__list__item agent-chat__list__item--ai" data-conv-speaker="ai">
+          <div class="agent-chat__bubble--ai">
+            <div class="agent-chat__conv--ai__speech_show">
+              <div class="hyc-component-deep-search-agent">
+                <div class="agent-process-timeline">
+                  <div class="agent-process-timeline_textComponent">
+                    <div class="hyc-content-md hyc-content-md-done">
+                      <div class="hyc-common-markdown hyc-common-markdown-style-cot">
+                        <div class="ybc-p">正在为你搜索相关资料</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="agent-process-timeline_group">
+                    <div class="agent-process-timeline_groupTitle">已创建 3 个文件</div>
+                  </div>
+                  <div class="agent-process-timeline_textComponent">
+                    <div class="hyc-content-md hyc-content-md-done">
+                      <div class="hyc-common-markdown hyc-common-markdown-style-cot">
+                        <div class="ybc-p">资料整理完成</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = yuanbao.extractMessages();
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe('assistant');
+    // Agent 模式不包 think 块（文字说明即正文）
+    expect(msgs[0].content).not.toContain(THINK_OPEN);
+    expect(msgs[0].content).toContain('正在为你搜索相关资料');
+    expect(msgs[0].content).toContain('资料整理完成');
+    // 操作分组标题转粗体作为步骤标题
+    expect(msgs[0].content).toContain('**已创建 3 个文件**');
+  });
+
+  it('extractMessages 无 .agent-chat__list__content 时返回空数组', () => {
+    document.body.innerHTML = '<div>其他内容</div>';
+    expect(yuanbao.extractMessages()).toEqual([]);
+  });
+
+  it('extractMessages 跳过无 speaker 的非消息项（指示器行）', () => {
+    document.body.innerHTML = `
+      <div class="agent-chat__list__content">
+        <div class="agent-chat__list__item">顶部指示器</div>
+        <div class="agent-chat__list__item agent-chat__list__item--human" data-conv-speaker="human">
+          <div class="agent-chat__bubble--human">
+            <div class="hyc-component-text"><div class="hyc-content-text">真实消息</div></div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = yuanbao.extractMessages();
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe('user');
+    expect(msgs[0].content).toBe('真实消息');
+    expect(msgs[0].content).not.toContain('顶部指示器');
+  });
+
+  it('extractMessages 形态A 引用标记噪声过滤（.hyc-common-markdown__ref-list）', () => {
+    // 真实场景：思考块内含 .hyc-common-markdown__ref-list 引用标记图标容器（img 图标，无实际 URL）
+    // html-to-markdown.js 的 NOISE_SELECTORS 已将其加入噪声过滤，不应混入提取内容
+    document.body.innerHTML = `
+      <div class="agent-chat__list__content">
+        <div class="agent-chat__list__item agent-chat__list__item--ai" data-conv-speaker="ai">
+          <div class="agent-chat__bubble--ai">
+            <div class="agent-chat__conv--ai__speech_show">
+              <div class="hyc-component-deepsearch-cot">
+                <div class="hyc-component-deepsearch-cot__think__content">
+                  <div class="hyc-component-deepsearch-cot__think__content__item hyc-component-deepsearch-cot__think__content__item-text">
+                    <div class="hyc-content-md hyc-content-md-done">
+                      <div class="hyc-common-markdown hyc-common-markdown-style-cot">
+                        <div class="ybc-p">降水概率 0%
+                          <div class="hyc-common-markdown__ref-list">
+                            <div class="hyc-common-markdown__ref-list__trigger">
+                              <div class="hyc-common-markdown__ref-list__item">
+                                <img src="https://example.com/icon.png">
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="hyc-content-md hyc-content-md-done">
+                <div class="hyc-common-markdown hyc-common-markdown-style">
+                  <div class="ybc-p">正式回答</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = yuanbao.extractMessages();
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe('assistant');
+    // 引用标记的 img URL 不应混入思考内容
+    expect(msgs[0].content).not.toContain('https://example.com/icon.png');
+    expect(msgs[0].content).not.toContain('ref-list');
+    // 思考与正式回答均保留
+    expect(msgs[0].content).toContain('降水概率 0%');
+    expect(msgs[0].content).toContain('正式回答');
   });
 });
