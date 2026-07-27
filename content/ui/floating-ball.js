@@ -223,10 +223,16 @@ class FloatingBall {
         const date = new Date(conv.updatedAt).toLocaleDateString('zh-CN');
         const tag = platformNames[conv.platform] || conv.platform;
 
+        // 语义命中时显示相似度徽章（0-1 → 百分比）
+        const simBadge = conv._similarity > 0
+          ? `<span class="conv-similarity" title="语义相似度 ${Math.round(conv._similarity * 100)}%">语义 ${Math.round(conv._similarity * 100)}%</span>`
+          : '';
+
         item.innerHTML = `
           <div class="conv-top">
             <div class="conv-title" title="${this.escapeHtml(conv.title)}">${this.escapeHtml(conv.title)}</div>
             <span class="conv-tag">${tag}</span>
+            ${simBadge}
           </div>
           <div class="conv-info">
             <span>${conv.messages.length} 条消息</span>

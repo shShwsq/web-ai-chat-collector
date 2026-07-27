@@ -283,6 +283,15 @@ const AIChatStyles = {
         color: #2563eb;
         white-space: nowrap;
       }
+      #ai-chat-panel .conv-item .conv-similarity {
+        font-size: 10px;
+        padding: 1px 6px;
+        border-radius: 4px;
+        background: #f0fdf4;
+        color: #16a34a;
+        white-space: nowrap;
+        margin-left: 4px;
+      }
       #ai-chat-panel .conv-item .conv-info {
         display: flex;
         justify-content: space-between;
