@@ -908,32 +908,26 @@ describe('腾讯元宝适配器', () => {
     expect(msgs[0].content).not.toContain(THINK_OPEN);
   });
 
-  it('extractMessages 形态B：Agent 模式（仅采集文字步骤，不包 think 块）', () => {
-    // Agent 模式：.hyc-component-deep-search-agent 内 .agent-process-timeline
-    //   textComponent → 文字说明（作为正文）
-    //   group → 操作分组标题（作为 **粗体** 步骤标题）
-    // 全部作为正文输出，不包 think 块（用户确认 Agent 模式的文字说明即回答内容）
+  it('extractMessages 形态B：Agent 模式（.hyc-component-deep-search-agent 内的正式回答）', () => {
+    // 真实场景（yuanbao_code.txt）：.hyc-component-deep-search-agent 内直接含 .hyc-content-md-done（正式回答），
+    // 另有 .hyc-card-box-process-list.--hidden（Agent 操作过程卡片，折叠态，不提取）。
+    // 适配器将 Agent 模式与简单回答模式统一处理，直接提取 .hyc-content-md-done。
     document.body.innerHTML = `
       <div class="agent-chat__list__content">
         <div class="agent-chat__list__item agent-chat__list__item--ai" data-conv-speaker="ai">
           <div class="agent-chat__bubble--ai">
             <div class="agent-chat__conv--ai__speech_show">
-              <div class="hyc-component-deep-search-agent">
-                <div class="agent-process-timeline">
-                  <div class="agent-process-timeline_textComponent">
+              <div class="hyc-card-box-process-list hyc-card-box-process-list--hidden">
+                <div class="agent-process-timeline__step">创建文件 snake_game.py</div>
+                <div class="agent-process-timeline__step">运行测试 13/13 通过</div>
+              </div>
+              <div class="">
+                <div class="agent-chat__speech-text--box">
+                  <div class="hyc-component-deep-search-agent">
                     <div class="hyc-content-md hyc-content-md-done">
-                      <div class="hyc-common-markdown hyc-common-markdown-style-cot">
-                        <div class="ybc-p">正在为你搜索相关资料</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="agent-process-timeline_group">
-                    <div class="agent-process-timeline_groupTitle">已创建 3 个文件</div>
-                  </div>
-                  <div class="agent-process-timeline_textComponent">
-                    <div class="hyc-content-md hyc-content-md-done">
-                      <div class="hyc-common-markdown hyc-common-markdown-style-cot">
-                        <div class="ybc-p">资料整理完成</div>
+                      <div class="hyc-common-markdown hyc-common-markdown-style">
+                        <div class="ybc-p">完美运行！蛇在终端里成功吃到了 18 个食物。</div>
+                        <div class="ybc-p">我给你写了两个版本，都已就绪：</div>
                       </div>
                     </div>
                   </div>
@@ -946,12 +940,14 @@ describe('腾讯元宝适配器', () => {
     const msgs = yuanbao.extractMessages();
     expect(msgs).toHaveLength(1);
     expect(msgs[0].role).toBe('assistant');
-    // Agent 模式不包 think 块（文字说明即正文）
+    // Agent 模式不包 think 块（无思考块）
     expect(msgs[0].content).not.toContain(THINK_OPEN);
-    expect(msgs[0].content).toContain('正在为你搜索相关资料');
-    expect(msgs[0].content).toContain('资料整理完成');
-    // 操作分组标题转粗体作为步骤标题
-    expect(msgs[0].content).toContain('**已创建 3 个文件**');
+    // 正式回答被提取
+    expect(msgs[0].content).toContain('完美运行');
+    expect(msgs[0].content).toContain('两个版本');
+    // 操作过程卡片内容不混入正式回答
+    expect(msgs[0].content).not.toContain('创建文件 snake_game.py');
+    expect(msgs[0].content).not.toContain('运行测试 13/13 通过');
   });
 
   it('extractMessages 无 .agent-chat__list__content 时返回空数组', () => {

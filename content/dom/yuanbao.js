@@ -25,13 +25,10 @@
 //                       .__item-text.__item--last     最后一步思考
 //                   .hyc-content-md-done（正式回答，在 deepsearch-cot 内但不在 __think 内）
 //                     .hyc-common-markdown-style > .ybc-p / .ybc-ul-component / blockquote
-//                 形态B（Agent模式）: .hyc-component-deep-search-agent--v2
-//                   .agent-process-timeline
-//                     .agent-process-timeline_textComponent  文字说明步骤
-//                       .hyc-content-md[-done] > .hyc-common-markdown-style-cot
-//                     .agent-process-timeline_group           操作分组（已创建N个文件等）
-//                       .agent-process-timeline_groupTitle
-//                 形态C（简单回答）: .hyc-content-md-done（无思考块）
+//                 形态B（Agent模式）: .hyc-component-deep-search-agent
+//                   .hyc-content-md-done（正式回答，与简单回答结构相同）
+//                   .hyc-card-box-process-list.--hidden（Agent 操作过程卡片，折叠态，不提取）
+//                 形态C（简单回答）: .hyc-content-md-done（无思考块、无 Agent 容器）
 //
 // 流式状态特征:
 //   - data-conv-outputting="true" 或 data-conv-status="running" 表示正在生成
@@ -160,23 +157,23 @@ DOM_ADAPTERS.yuanbao = {
 
   // 提取助手消息内容（按形态分发）
   // 形态A: 深度搜索模式（有 .hyc-component-deepsearch-cot）→ 思考 + 搜索 + 回答
-  // 形态B: Agent 模式（有 .hyc-component-deep-search-agent）→ 文字步骤（作为正文）
-  // 形态C: 简单回答（仅 .hyc-content-md-done）→ 直接转 markdown
+  // 形态B: Agent 模式（有 .hyc-component-deep-search-agent，无 deepsearch-cot）→ 直接提取 .hyc-content-md-done
+  // 形态C: 简单回答（无上述容器）→ 直接提取 .hyc-content-md-done
+  // 注：形态B与C的提取逻辑相同，差异仅在容器包裹层；Agent 操作过程卡片（.hyc-card-box-process-list）不提取
   _extractAssistantContent: (el) => {
     const deepSearchCot = el.querySelector('.hyc-component-deepsearch-cot');
-    const deepSearchAgent = el.querySelector('.hyc-component-deep-search-agent');
 
     if (deepSearchCot) {
       console.log('[Yuanbao/DOM] 形态A: 深度搜索模式');
       return DOM_ADAPTERS.yuanbao._extractDeepSearchMode(el, deepSearchCot);
     }
 
+    const deepSearchAgent = el.querySelector('.hyc-component-deep-search-agent');
     if (deepSearchAgent) {
       console.log('[Yuanbao/DOM] 形态B: Agent 模式');
-      return DOM_ADAPTERS.yuanbao._extractAgentMode(el, deepSearchAgent);
+    } else {
+      console.log('[Yuanbao/DOM] 形态C: 简单回答模式');
     }
-
-    console.log('[Yuanbao/DOM] 形态C: 简单回答模式');
     return DOM_ADAPTERS.yuanbao._extractSimpleAnswer(el);
   },
 
@@ -207,8 +204,6 @@ DOM_ADAPTERS.yuanbao = {
       for (const md of allMdDones) {
         // 跳过位于思考步骤内的（思考步骤的 markdown 也有 -done 后缀，但在 __think 内）
         if (md.closest('.hyc-component-deepsearch-cot__think')) continue;
-        // 跳过位于 Agent timeline 内的
-        if (md.closest('.hyc-component-deep-search-agent')) continue;
         const text = DOM_ADAPTERS.yuanbao._extractMarkdownText(md);
         if (text.trim()) answerParts.push(text.trim());
       }
@@ -267,56 +262,7 @@ DOM_ADAPTERS.yuanbao = {
     };
   },
 
-  // 形态B: Agent 模式提取
-  // 只采集文字说明（用户确认），操作分组标题作为步骤标题
-  // 全部作为正文输出（不包 think 块，因为 Agent 模式的文字说明即回答内容）
-  _extractAgentMode: (el, agentEl) => {
-    const parts = [];
-    const timeline = agentEl.querySelector('.agent-process-timeline');
-    if (!timeline) {
-      console.log('[Yuanbao/DOM] Agent 模式: 未找到 .agent-process-timeline');
-      return '';
-    }
-
-    // 遍历 timeline 的直接子元素，按顺序处理 textComponent 和 group
-    const children = timeline.querySelectorAll(':scope > *');
-    for (const child of children) {
-      const isText = child.classList.contains('agent-process-timeline_textComponent');
-      const isGroup = child.classList.contains('agent-process-timeline_group');
-
-      if (isText) {
-        const markdown = child.querySelector('.hyc-common-markdown, .hyc-common-markdown-style-cot');
-        if (markdown) {
-          const text = DOM_ADAPTERS.yuanbao._extractMarkdownText(markdown);
-          if (text.trim()) parts.push(text.trim());
-        }
-      } else if (isGroup) {
-        const titleEl = child.querySelector('.agent-process-timeline_groupTitle');
-        if (titleEl) {
-          const title = titleEl.textContent.trim();
-          if (title) parts.push(`**${title}**`);
-        }
-      }
-    }
-
-    // 兜底: 若按直接子元素未提取到，遍历所有 textComponent
-    if (parts.length === 0) {
-      const textComponents = timeline.querySelectorAll('.agent-process-timeline_textComponent');
-      for (const tc of textComponents) {
-        const markdown = tc.querySelector('.hyc-common-markdown, .hyc-common-markdown-style-cot');
-        if (markdown) {
-          const text = DOM_ADAPTERS.yuanbao._extractMarkdownText(markdown);
-          if (text.trim()) parts.push(text.trim());
-        }
-      }
-    }
-
-    const content = parts.join('\n\n');
-    console.log('[Yuanbao/DOM] Agent 模式: 共 %d 段, 总长度=%d', parts.length, content.length);
-    return content;
-  },
-
-  // 形态C: 简单回答模式提取
+  // 形态B/C: 简单回答模式提取（Agent 模式与简单回答共用）
   // 直接取 .hyc-content-md-done 转 markdown
   _extractSimpleAnswer: (el) => {
     const mdDone = el.querySelector('.hyc-content-md-done');
