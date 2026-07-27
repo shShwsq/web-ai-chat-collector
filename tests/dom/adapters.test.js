@@ -1054,4 +1054,36 @@ describe('腾讯元宝适配器', () => {
     // 表格操作按钮文字"复制"不混入
     expect(msgs[0].content).not.toContain('复制');
   });
+
+  it('extractMessages 代码块：3 层 pre 嵌套结构正确提取，无多余语言文字', () => {
+    // 真实场景（yuanbao_code.txt）：代码块为 3 层 pre 嵌套
+    //   pre.ybc-pre-component > div.hyc-common-markdown__code > pre.hyc-common-markdown__code-lan > ... > pre > code.language-bash
+    // 标题栏的 .hyc-common-markdown__code__langComponent 含语言标签"bash"
+    // 问题：turndown 默认 codeBlock 规则匹配最外层 pre 时会把标题栏"bash"当作代码内容输出
+    // 适配器自定义 yuanbaoCodeBlock 规则，从 langComponent 提取语言，从最内层 code 提取代码
+    document.body.innerHTML = `
+      <div class="agent-chat__list__content">
+        <div class="agent-chat__list__item agent-chat__list__item--ai" data-conv-speaker="ai">
+          <div class="agent-chat__bubble--ai">
+            <div class="agent-chat__conv--ai__speech_show">
+              <div class="hyc-content-md hyc-content-md-done">
+                <div class="hyc-common-markdown hyc-common-markdown-style">
+                  <pre class="ybc-pre-component ybc-pre-component_not-math"><div class="hyc-common-markdown__code hyc-common-markdown__code--collapse-v2"><div class="hyc-common-markdown__code__hd"><div class="hyc-common-markdown__code__hd__inner"><div class="hyc-common-markdown__code__hd__l hyc-common-markdown__code__langComponent"><span>bash</span></div><div class="hyc-common-markdown__code__hd__r"><button>复制</button></div></div></div><pre class="hyc-common-markdown__code-lan isDark"><div class="hyc-code-scrollbar"><div class="hyc-code-scrollbar__view"><pre><code class="language-bash">pip install pygame
+python snake_game.py</code></pre></div></div></pre></div></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = yuanbao.extractMessages();
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe('assistant');
+    // 代码块正确提取，含语言标签 bash
+    expect(msgs[0].content).toContain('```bash\npip install pygame\npython snake_game.py\n```');
+    // 修复前 bug：代码块前多出"bash"独立段落
+    expect(msgs[0].content).not.toMatch(/\nbash\n[^`]/);
+    // 复制按钮文字不混入
+    expect(msgs[0].content).not.toContain('复制');
+  });
 });

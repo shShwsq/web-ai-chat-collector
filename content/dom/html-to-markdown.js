@@ -107,6 +107,52 @@
     }
   });
 
+  // 自定义规则：元宝代码块
+  // 结构（3 层 pre 嵌套）：
+  //   <pre class="ybc-pre-component">
+  //     <div class="hyc-common-markdown__code">
+  //       <div class="hyc-common-markdown__code__hd">  ← 标题栏（语言标签 + 复制按钮）
+  //         <span class="hyc-common-markdown__code__langComponent">bash</span>
+  //       </div>
+  //       <pre class="hyc-common-markdown__code-lan">  ← 中间层（滚动容器）
+  //         <div class="hyc-code-scrollbar"><div class="hyc-code-scrollbar__view">
+  //           <pre><code class="language-bash">实际代码</code></pre>  ← 最内层
+  //         </div></div>
+  //       </pre>
+  //     </div>
+  //   </pre>
+  // 问题：turndown 默认 codeBlock 规则匹配最外层 <pre> 时会把标题栏的"bash"语言文字当作代码内容输出，
+  //       且最内层 <pre><code> 又被单独识别为代码块，导致代码块前多出"bash"纯文本
+  // 方案：匹配 .hyc-common-markdown__code 容器，从 langComponent 提取语言，从最内层 <code> 提取代码
+  turndownService.addRule('yuanbaoCodeBlock', {
+    filter: function (node) {
+      return node.nodeName === 'DIV' &&
+             node.getAttribute('class') &&
+             /\bhyc-common-markdown__code\b/.test(node.getAttribute('class'));
+    },
+    replacement: function (content, node) {
+      // 语言标签在标题栏的 .hyc-common-markdown__code__langComponent
+      var lang = '';
+      var langEl = node.querySelector('.hyc-common-markdown__code__langComponent');
+      if (langEl) {
+        lang = langEl.textContent.trim();
+      }
+      // 兜底：从最内层 <code class="language-xxx"> 提取语言
+      if (!lang) {
+        var codeWithLang = node.querySelector('code[class*="language-"]');
+        if (codeWithLang) {
+          var m = codeWithLang.className.match(/language-(\S+)/);
+          if (m) lang = m[1];
+        }
+      }
+      // 代码在最内层 <pre><code>（跳过中间层 .hyc-common-markdown__code-lan）
+      var codeEl = node.querySelector('pre pre code, code[class*="language-"], code');
+      var code = codeEl ? (codeEl.textContent || '') : '';
+      code = code.replace(/^\n+|\n+$/g, '');
+      return '\n\n```' + lang + '\n' + code + '\n```\n\n';
+    }
+  });
+
   // 自定义规则：DeepSeek 代码块
   // 结构：<div class="md-code-block"><div class="md-code-block-banner-wrap">...<span>bash</span>...复制/下载按钮...</div><pre>code</pre></div>
   // 问题：turndown 默认 codeBlock 规则不提取语言（语言在 banner 而非 <code class="language-xxx">），
