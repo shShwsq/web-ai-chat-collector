@@ -89,13 +89,20 @@
 
   // 自定义规则：元宝 <div class="ybc-p"> → 段落
   // 元宝用 div.ybc-p 作为段落容器（div 而非 p），需同样按段落处理
+  // 例外：表格单元格（th/td）内的 .ybc-p 不能输出任何换行符（\n\n 或 \n 都会破坏 GFM 表格识别），
+  //       单元格内多个 .ybc-p 用空格连接（GFM 表格单元格内不允许换行）
   turndownService.addRule('yuanbaoParagraphDiv', {
     filter: function (node) {
       return node.nodeName === 'DIV' &&
              node.getAttribute('class') &&
              /\bybc-p\b/.test(node.getAttribute('class'));
     },
-    replacement: function (content) {
+    replacement: function (content, node) {
+      // 判断是否位于表格单元格内
+      var inCell = node.closest && node.closest('th, td');
+      if (inCell) {
+        return content + ' ';
+      }
       return '\n\n' + content + '\n\n';
     }
   });

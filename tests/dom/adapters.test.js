@@ -1020,4 +1020,38 @@ describe('腾讯元宝适配器', () => {
     expect(msgs[0].content).toContain('降水概率 0%');
     expect(msgs[0].content).toContain('正式回答');
   });
+
+  it('extractMessages 表格：.ybc-p 单元格内段落不破坏 GFM 表格识别', () => {
+    // 真实场景（yuanbao_code.txt）：每个 th/td 内含 <div class="ybc-p"> 包裹内容
+    // .ybc-p 默认输出 \n\n（段落分隔），但单元格内换行会破坏 GFM 表格规则
+    // 适配器在单元格内改用空格连接，确保表格被正确识别为 | col1 | col2 | 格式
+    document.body.innerHTML = `
+      <div class="agent-chat__list__content">
+        <div class="agent-chat__list__item agent-chat__list__item--ai" data-conv-speaker="ai">
+          <div class="agent-chat__bubble--ai">
+            <div class="agent-chat__conv--ai__speech_show">
+              <div class="hyc-content-md hyc-content-md-done">
+                <div class="hyc-common-markdown hyc-common-markdown-style">
+                  <div class="hyc-common-markdown__table-wrapper isDark">
+                    <div class="hyc-common-markdown__table-actions-sticky">
+                      <button>复制</button>
+                    </div>
+                    <table><thead><tr><th><div class="ybc-p">文件</div></th><th><div class="ybc-p">说明</div></th></tr></thead><tbody><tr><td><div class="ybc-p"><code class="hyc-common-markdown__code__inline">snake_game.py</code></div></td><td><div class="ybc-p"><strong>图形界面版</strong>（Pygame），本地电脑直接玩</div></td></tr><tr><td><div class="ybc-p"><code class="hyc-common-markdown__code__inline">snake_terminal.py</code></div></td><td><div class="ybc-p"><strong>终端版</strong>，服务器环境可运行</div></td></tr></tbody></table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = yuanbao.extractMessages();
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe('assistant');
+    // 表格被识别为 GFM 管道符表格（含表头分隔行）
+    expect(msgs[0].content).toMatch(/\| 文件\s*\| 说明\s*\|/);
+    expect(msgs[0].content).toMatch(/\| [`]snake_game\.py[`]\s*\| \*\*图形界面版\*\*/);
+    expect(msgs[0].content).toMatch(/\| [`]snake_terminal\.py[`]\s*\| \*\*终端版\*\*/);
+    // 表格操作按钮文字"复制"不混入
+    expect(msgs[0].content).not.toContain('复制');
+  });
 });
