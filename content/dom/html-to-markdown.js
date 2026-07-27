@@ -384,7 +384,10 @@
     // 元宝思考块加载占位（流式中的动画占位，无实际内容）
     '.hyc-component-deepsearch-cot__think__content__item-loading',
     // 元宝 Agent 模式折叠箭头图标
-    '.agent-process-timeline_groupChevron'
+    '.agent-process-timeline_groupChevron',
+    // 元宝文件卡片（.ybc-p--file-card，含文件图标 + 文件名 + 截断的代码预览）
+    // 文件名已在正文中提及，代码预览不完整（被截断），文件图标为装饰性，整块过滤
+    '.ybc-p--file-card'
   ];
 
   window.HtmlToMarkdown = {

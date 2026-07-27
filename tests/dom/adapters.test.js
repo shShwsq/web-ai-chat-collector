@@ -1086,4 +1086,56 @@ python snake_game.py</code></pre></div></div></pre></div></pre>
     // 复制按钮文字不混入
     expect(msgs[0].content).not.toContain('复制');
   });
+
+  it('extractMessages 文件卡片过滤（.ybc-p--file-card 含图标/文件名/截断代码预览）', () => {
+    // 真实场景（yuanbao_code.txt）：助手消息末尾附文件卡片，结构为
+    //   .ybc-p.ybc-p--file-card > .hyc-common-markdown--fileLink > .file-card_fileCard__xxx
+    //     ├─ .file-card_avatar（含 img 图标，src 为 cos.ap-guangzhou.myqcloud.com 的装饰图标）
+    //     ├─ 文件名（snake_game.py）
+    //     └─ 截断的代码预览（不完整，如"COLS ="后截断）
+    // 文件名已在正文提及，代码预览不完整，图标为装饰性，整块过滤
+    document.body.innerHTML = `
+      <div class="agent-chat__list__content">
+        <div class="agent-chat__list__item agent-chat__list__item--ai" data-conv-speaker="ai">
+          <div class="agent-chat__bubble--ai">
+            <div class="agent-chat__conv--ai__speech_show">
+              <div class="hyc-content-md hyc-content-md-done">
+                <div class="hyc-common-markdown hyc-common-markdown-style">
+                  <div class="ybc-p">这是正式回答的正文内容。</div>
+                  <div class="ybc-p ybc-p--file-card">
+                    <div class="hyc-common-markdown--fileLink hyc-common-markdown__replace-fileLink">
+                      <div class="file-card_fileCard__gfdDP file-card_cardWall__L1qNc">
+                        <div class="file-card_header__UdDYl">
+                          <div class="file-card_headerInner__LWFMZ">
+                            <div class="file-card_avatar__KPMTb">
+                              <img src="https://hunyuan-prod-1258344703.cos.ap-guangzhou.myqcloud.com/public2025/icon/html_icon_dark_test.png">
+                            </div>
+                            <div class="file-card_fileName">snake_game.py</div>
+                          </div>
+                        </div>
+                        <div class="file-card_content">
+                          <pre><code>""" 贪吃蛇游戏 - Python + Pygame """ import pygame # 计算网格 COLS =</code></pre>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = yuanbao.extractMessages();
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe('assistant');
+    // 正式回答正文保留
+    expect(msgs[0].content).toContain('这是正式回答的正文内容');
+    // 文件卡片的图标 URL 不混入
+    expect(msgs[0].content).not.toContain('cos.ap-guangzhou.myqcloud.com');
+    // 文件卡片的截断代码预览不混入
+    expect(msgs[0].content).not.toContain('计算网格');
+    expect(msgs[0].content).not.toContain('COLS =');
+    // 文件卡片的文件名作为独立段落不混入（正文中的文件名引用不受影响）
+    expect(msgs[0].content).not.toMatch(/\nsnake_game\.py\n/);
+  });
 });
