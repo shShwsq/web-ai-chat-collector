@@ -746,17 +746,44 @@ describe('腾讯元宝适配器', () => {
     expect(yuanbao.getConversationId()).toBe('default');
   });
 
-  it('getTitle 对话页直接返回 document.title', () => {
+  it('getTitle 优先从侧边栏 active 项提取标题', () => {
+    // 真实场景：侧边栏 .yb-recent-conv-list__item.active 内的 .yb-recent-conv-list__item-name 含当前对话标题
+    // 优先级高于 document.title（新对话刚发起时 document.title 可能未更新）
+    document.body.innerHTML = `
+      <div class="yb-recent-conv-list">
+        <div class="yb-recent-conv-list__item">
+          <div class="yb-recent-conv-list__item-name" data-item-id="other">其他对话</div>
+        </div>
+        <div class="yb-recent-conv-list__item active">
+          <div class="yb-recent-conv-list__item-name" data-item-id="0P71bwF3Gl6">贪吃蛇代码测试与运行结果</div>
+        </div>
+      </div>`;
+    expect(yuanbao.getTitle()).toBe('贪吃蛇代码测试与运行结果');
+  });
+
+  it('getTitle 侧边栏无 active 项时降级到 document.title', () => {
+    document.body.innerHTML = '<div class="yb-recent-conv-list"></div>';
+    expect(yuanbao.getTitle()).toBe('上海今日天气与降雨情况');
+  });
+
+  it('getTitle 侧边栏 active 项含"元宝"默认标题时降级到 document.title', () => {
+    // 新对话刚发起时，侧边栏 active 项可能显示"元宝"默认标题，应降级
+    document.body.innerHTML = `
+      <div class="yb-recent-conv-list__item active">
+        <div class="yb-recent-conv-list__item-name">元宝</div>
+      </div>`;
     expect(yuanbao.getTitle()).toBe('上海今日天气与降雨情况');
   });
 
   it('getTitle 首页标题"元宝 - 轻松工作 多点生活"返回"未命名对话"', () => {
     resetEnv('/', '', '元宝 - 轻松工作 多点生活');
+    document.body.innerHTML = '';
     expect(yuanbao.getTitle()).toBe('未命名对话');
   });
 
   it('getTitle 空标题时返回"未命名对话"', () => {
     resetEnv('/chat/abc/def', '', '');
+    document.body.innerHTML = '';
     expect(yuanbao.getTitle()).toBe('未命名对话');
   });
 

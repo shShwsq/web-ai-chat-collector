@@ -62,10 +62,20 @@ DOM_ADAPTERS.yuanbao = {
     return id;
   },
 
-  // 获取标题
-  // document.title 在对话页直接是对话标题（如"上海今日天气与降雨情况"），
-  // 首页则为"元宝 - 轻松工作 多点生活"，需排除
+  // 获取对话标题
+  // 优先级 1：侧边栏当前激活对话项 .yb-recent-conv-list__item.active .yb-recent-conv-list__item-name
+  //          （新对话刚发起时 document.title 可能未更新，但侧边栏 active 项已含标题）
+  // 优先级 2：document.title（对话页直接是对话标题）
+  // 排除首页默认标题"元宝 - 轻松工作 多点生活"
   getTitle: () => {
+    // 1. 侧边栏 active 项
+    const activeName = document.querySelector('.yb-recent-conv-list__item.active .yb-recent-conv-list__item-name');
+    if (activeName) {
+      const text = activeName.textContent.trim();
+      if (text && !text.includes('元宝')) return text;
+    }
+
+    // 2. document.title
     const raw = document.title || '';
     if (raw.includes('元宝') && (raw.includes('轻松工作') || raw.includes('AI助手'))) {
       return '未命名对话';
