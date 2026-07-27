@@ -283,6 +283,33 @@ const AIChatStyles = {
         color: #2563eb;
         white-space: nowrap;
       }
+      #ai-chat-panel .conv-item .conv-similarity {
+        font-size: 10px;
+        padding: 1px 6px;
+        border-radius: 4px;
+        background: #f0fdf4;
+        color: #16a34a;
+        white-space: nowrap;
+        margin-left: 4px;
+      }
+      #ai-chat-panel .conv-item .conv-snippet {
+        font-size: 11px;
+        color: #6b7280;
+        margin: 4px 0 0;
+        line-height: 1.4;
+        max-height: 36px;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+      }
+      #ai-chat-panel .conv-item .conv-snippet mark {
+        background: #fef08a;
+        color: #854d0e;
+        padding: 0 2px;
+        border-radius: 2px;
+        font-weight: 600;
+      }
       #ai-chat-panel .conv-item .conv-info {
         display: flex;
         justify-content: space-between;
