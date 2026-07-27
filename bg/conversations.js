@@ -33,8 +33,8 @@ async function dbGetStorageInfo() {
 // 混合检索：关键字（倒排索引）+ 语义（向量相似度）并行
 // - Embedding 未配置或向量库为空时自动降级为纯关键字检索
 // - 语义命中按 convId 聚合（取最大相似度），拉取对话详情后合并
-// - 排序：语义命中优先（按相似度降序），关键字命中次之（保持原顺序）
-// - 返回的对话对象附带 _similarity（0-1，仅语义命中有）
+// - 排序：关键字命中优先（按命中分数降序），语义命中次之（按相似度降序）
+// - 返回的对话对象附带 _keywordScore（>0 表示关键字命中）和 _similarity（0-1，仅语义命中有）
 async function dbSearchConversations(query, filters) {
   if (!query || !query.trim()) {
     return await getConversations(filters);
@@ -45,9 +45,16 @@ async function dbSearchConversations(query, filters) {
     _semanticSearchConversations(query, filters)
   ]);
 
+  // 关键字结果已按命中分数降序，用数组长度 - 索引反推分数（索引 0 = 最高分）
+  const keywordScoreMap = new Map();
+  keywordResults.forEach((conv, idx) => {
+    keywordScoreMap.set(conv.id, keywordResults.length - idx);
+  });
+
   // 合并去重：关键字结果先行，语义结果补充 _similarity 或追加新对话
   const merged = new Map();
   for (const conv of keywordResults) {
+    conv._keywordScore = keywordScoreMap.get(conv.id);
     merged.set(conv.id, conv);
   }
   for (const conv of semanticResults) {
@@ -59,15 +66,15 @@ async function dbSearchConversations(query, filters) {
     }
   }
 
-  // 排序：有 _similarity 的优先（按相似度降序），无的保持原顺序
+  // 排序：关键字命中优先（_keywordScore 降序），仅语义命中次之（_similarity 降序）
   const list = Array.from(merged.values());
   list.sort((a, b) => {
-    const aSim = a._similarity || 0;
-    const bSim = b._similarity || 0;
-    if (aSim > 0 && bSim > 0) return bSim - aSim;
-    if (aSim > 0) return -1;
-    if (bSim > 0) return 1;
-    return 0;
+    const aK = a._keywordScore || 0;
+    const bK = b._keywordScore || 0;
+    if (aK > 0 && bK > 0) return bK - aK;
+    if (aK > 0) return -1;
+    if (bK > 0) return 1;
+    return (b._similarity || 0) - (a._similarity || 0);
   });
 
   return list;
