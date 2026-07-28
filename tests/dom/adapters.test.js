@@ -1221,25 +1221,47 @@ describe('百度文心适配器', () => {
     expect(wenxin.isStreaming()).toBe(false);
   });
 
-  it('isStreaming 最后 QA 对 data-chat-status="GENERATING" 时为 true', () => {
+  it('isStreaming .cs-answer-container[data-status="GENERATING"] 时为 true', () => {
+    // 真实流式态：.chat-qa-container[data-chat-status] 仍是 COMPLETE（不可靠），
+    // 但 .cs-answer-container[data-status="GENERATING"] 可靠指示生成中
     document.body.innerHTML = `
-      <div class="chat-qa-container" data-chat-status="COMPLETE"></div>
-      <div class="chat-qa-container" data-chat-status="GENERATING"></div>`;
+      <div class="chat-qa-container" data-chat-status="COMPLETE">
+        <div class="cs-answer-container" data-status="COMPLETE"></div>
+      </div>
+      <div class="chat-qa-container" data-chat-status="COMPLETE">
+        <div class="cs-answer-container" data-status="GENERATING"></div>
+      </div>`;
     expect(wenxin.isStreaming()).toBe(true);
   });
 
-  it('isStreaming 最后 QA 对 data-chat-status="COMPLETE" 时为 false', () => {
+  it('isStreaming .cs-answer-container[data-status="COMPLETE"] 时为 false', () => {
     document.body.innerHTML = `
-      <div class="chat-qa-container" data-chat-status="GENERATING"></div>
-      <div class="chat-qa-container" data-chat-status="COMPLETE"></div>`;
+      <div class="chat-qa-container" data-chat-status="COMPLETE">
+        <div class="cs-answer-container" data-status="GENERATING"></div>
+      </div>
+      <div class="chat-qa-container" data-chat-status="COMPLETE">
+        <div class="cs-answer-container" data-status="COMPLETE"></div>
+      </div>`;
     expect(wenxin.isStreaming()).toBe(false);
   });
 
-  it('isStreaming 兜底：._markdown-content_ 无 _typing-finished_ 时为 true', () => {
-    // 流式生成中存在未完成的 markdown 段（class 含 _markdown-content_ 但不含 _typing-finished_）
+  it('isStreaming 存在 .cosd-markdown-loading 时为 true', () => {
+    // 流式态 markdown 末尾会出现 <span class="cosd-markdown-loading"></span> 加载占位
     document.body.innerHTML = `
       <div class="chat-qa-container" data-chat-status="COMPLETE">
-        <div class="_markdown-content_53we2_1 _no-header_53we2_71"></div>
+        <div class="cs-answer-container" data-status="COMPLETE">
+          <div class="cosd-markdown"><span class="cosd-markdown-loading"></span></div>
+        </div>
+      </div>`;
+    expect(wenxin.isStreaming()).toBe(true);
+  });
+
+  it('isStreaming 存在 _answer-generating_ 类时为 true', () => {
+    // 流式态回答菜单含 _answer-generating_ 类
+    document.body.innerHTML = `
+      <div class="chat-qa-container" data-chat-status="COMPLETE">
+        <div class="cs-answer-container" data-status="COMPLETE"></div>
+        <div class="cs-hover-menu _answer-generating_1fov1_64" data-status="GENERATING"></div>
       </div>`;
     expect(wenxin.isStreaming()).toBe(true);
   });

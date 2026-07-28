@@ -89,17 +89,27 @@ DOM_ADAPTERS.wenxin = {
   },
 
   // 检测流式输出是否进行中
-  // 信号：最后一条 .chat-qa-container 的 data-chat-status != "COMPLETE"
-  // 兜底：存在 ._markdown-content_ 但无 _typing-finished_（生成中的 markdown 段）
+  // 注意：.chat-qa-container[data-chat-status] 在流式态也是 "COMPLETE"，不可靠；
+  //       _typing-finished_ 在流式态也存在，不可靠。
+  // 可靠信号（基于 wenxin_stream.txt 与 wenxin.txt 对比确认）：
+  //   1. .cs-answer-container[data-status="GENERATING"]  回答容器生成中
+  //   2. .cosd-markdown-loading                          markdown 内的加载占位
+  //   3. [class*="_answer-generating_"]                  回答菜单的生成中类
   isStreaming: () => {
-    const items = document.querySelectorAll('.chat-qa-container');
-    if (items.length === 0) return false;
-    const lastItem = items[items.length - 1];
-    const status = lastItem.getAttribute('data-chat-status');
-    if (status && status !== 'COMPLETE') return true;
-    // 兜底：检查是否有未完成的 markdown 段（_markdown-content_ 无 _typing-finished_）
-    const unfinishedMd = lastItem.querySelector('[class*="_markdown-content_"]:not([class*="_typing-finished_"])');
-    if (unfinishedMd) return true;
+    // 1. 回答容器状态（最可靠，GENERATING 表示正在生成）
+    const answerContainers = document.querySelectorAll('.cs-answer-container');
+    if (answerContainers.length > 0) {
+      const lastAnswer = answerContainers[answerContainers.length - 1];
+      const status = lastAnswer.getAttribute('data-status');
+      if (status === 'GENERATING') return true;
+    }
+
+    // 2. markdown 加载占位（流式中 markdown 末尾的加载指示器）
+    if (document.querySelector('.cosd-markdown-loading')) return true;
+
+    // 3. 回答菜单生成中类
+    if (document.querySelector('[class*="_answer-generating_"]')) return true;
+
     return false;
   },
 
