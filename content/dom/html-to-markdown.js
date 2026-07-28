@@ -387,7 +387,10 @@
     '.agent-process-timeline_groupChevron',
     // 元宝文件卡片（.ybc-p--file-card，含文件图标 + 文件名 + 截断的代码预览）
     // 文件名已在正文中提及，代码预览不完整（被截断），文件图标为装饰性，整块过滤
-    '.ybc-p--file-card'
+    '.ybc-p--file-card',
+    // 文心表格工具栏（.cosd-markdown-table-header，含"表格"文字标签 + 复制/下载按钮图标）
+    // 真实表格在同级 <table> 元素中，工具栏非表格内容，整块过滤
+    '.cosd-markdown-table-header'
   ];
 
   window.HtmlToMarkdown = {

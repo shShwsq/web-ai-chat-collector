@@ -1477,5 +1477,57 @@ describe('百度文心适配器', () => {
     // 图片轮播内容不混入
     expect(msgs[1].content).not.toContain('图片轮播');
   });
+
+  it('extractMessages 表格：过滤 .cosd-markdown-table-header 工具栏，"表格"二字不混入', () => {
+    // 真实场景（wenxin2.txt）：每个表格外层有 .cosd-markdown-table-header 工具栏
+    // 含"表格"文字标签 + 复制/下载按钮图标，非表格内容，应过滤
+    document.body.innerHTML = `
+      <div id="conversation-flow-content">
+        <div class="chat-qa-container" data-qa-pair-id="1" data-chat-status="COMPLETE">
+          <div class="conversation-flow-question-container">
+            <div class="cs-question-bubble" data-query="银行金条价格"></div>
+          </div>
+          <div class="conversation-flow-answer-container">
+            <div class="ai-entry">
+              <div class="ai-entry-block ai-markdown">
+                <div class="cosd-markdown"><div class="cosd-markdown-content"><div class="marklang">
+                  <p class="marklang-paragraph">银行渠道投资金条价格：</p>
+                  <div class="cosd-markdown-table">
+                    <div class="cosd-markdown-table-header">
+                      <span class="cosd-markdown-table-header-left">表格</span>
+                      <span class="cosd-markdown-table-header-right">
+                        <span class="cos-icon cos-icon-copy"></span>
+                        <span class="cos-icon cos-icon-download"></span>
+                      </span>
+                    </div>
+                    <table>
+                      <thead><tr><th>银行名称</th><th>投资金条价格（元/克）</th></tr></thead>
+                      <tbody>
+                        <tr><td>中国银行</td><td>909.0</td></tr>
+                        <tr><td>工商银行</td><td>908.5</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = wenxin.extractMessages();
+    expect(msgs).toHaveLength(2);
+    expect(msgs[1].role).toBe('assistant');
+    // 表格内容正常提取
+    expect(msgs[1].content).toContain('银行名称');
+    expect(msgs[1].content).toContain('投资金条价格');
+    expect(msgs[1].content).toContain('中国银行');
+    expect(msgs[1].content).toContain('909.0');
+    expect(msgs[1].content).toContain('工商银行');
+    expect(msgs[1].content).toContain('908.5');
+    // "表格"工具栏标签和按钮不混入
+    expect(msgs[1].content).not.toMatch(/^表格$/m);
+    // 复制/下载按钮图标（空 span）不应产生多余文本
+    expect(msgs[1].content).not.toContain('cos-icon');
+  });
 });
 
