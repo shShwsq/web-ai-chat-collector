@@ -1,5 +1,5 @@
 // tests/dom/adapters.test.js
-// 6 个平台 DOM 适配器测试：kimi / deepseek / qianwen / fudan / doubao / yuanbao
+// 7 个平台 DOM 适配器测试：kimi / deepseek / qianwen / fudan / doubao / yuanbao / wenxin
 //
 // 这是"平台 DOM 改了立刻发现"的核心防线：
 // 每个平台用 1-2 个最小 DOM fixture 覆盖 getConversationId / getTitle / isStreaming / extractMessages。
@@ -11,16 +11,17 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { loadDomAdapter } from '../helpers/load-source.js';
 
-let kimi, deepseek, qianwen, fudan, doubao, yuanbao;
+let kimi, deepseek, qianwen, fudan, doubao, yuanbao, wenxin;
 
 beforeAll(() => {
-  // 分别加载 6 个平台适配器（每次都会重新加载 turndown + html-to-markdown + katex-html-to-latex）
+  // 分别加载 7 个平台适配器（每次都会重新加载 turndown + html-to-markdown + katex-html-to-latex）
   kimi = loadDomAdapter('kimi');
   deepseek = loadDomAdapter('deepseek');
   qianwen = loadDomAdapter('qianwen');
   fudan = loadDomAdapter('fudan');
   doubao = loadDomAdapter('doubao');
   yuanbao = loadDomAdapter('yuanbao');
+  wenxin = loadDomAdapter('wenxin');
 });
 
 // 重置 jsdom 环境（每个测试前清空 body + 重置 location/title）
@@ -1166,3 +1167,240 @@ python snake_game.py</code></pre></div></div></pre></div></pre>
     expect(msgs[0].content).not.toMatch(/\nsnake_game\.py\n/);
   });
 });
+
+// =================================================================
+// 百度文心适配器
+// =================================================================
+describe('百度文心适配器', () => {
+  beforeEach(() => resetEnv('/search/9072820506009435333', '?enter_type=chat_site', '百度文心助手 - 办公学习一站解决'));
+
+  it('getConversationId 从 /search/{convId} 提取', () => {
+    // URL 格式: https://wenxin.baidu.com/search/{convId}?enter_type=...
+    //           https://chat.baidu.com/search/{convId}?enter_type=...
+    expect(wenxin.getConversationId()).toBe('9072820506009435333');
+  });
+
+  it('getConversationId 无 /search/ 前缀时返回 default', () => {
+    resetEnv('/');
+    expect(wenxin.getConversationId()).toBe('default');
+  });
+
+  it('getConversationId 无 convId 时返回 default', () => {
+    resetEnv('/search/');
+    expect(wenxin.getConversationId()).toBe('default');
+  });
+
+  it('getTitle 优先从侧边栏 selected 项提取标题', () => {
+    // 真实场景：侧边栏 .chat-side-list-item.selected .history-item-text 含当前对话标题
+    // document.title 始终是"百度文心助手 - 办公学习一站解决"默认值，无法用作标题
+    document.body.innerHTML = `
+      <div class="chat-side-list">
+        <div class="chat-side-list-item">
+          <div class="history-item-content"><span class="history-item-text">其他对话</span></div>
+        </div>
+        <div class="chat-side-list-item selected">
+          <div class="history-item-content"><span class="history-item-text">明天上海下雨吗</span></div>
+        </div>
+      </div>`;
+    expect(wenxin.getTitle()).toBe('明天上海下雨吗');
+  });
+
+  it('getTitle 侧边栏无 selected 项时降级到 document.title', () => {
+    // document.title 不是默认"百度文心助手"时可用
+    resetEnv('/search/abc', '', '用户自定义标题');
+    document.body.innerHTML = '<div class="chat-side-list"></div>';
+    expect(wenxin.getTitle()).toBe('用户自定义标题');
+  });
+
+  it('getTitle 侧边栏无 selected 且 document.title 为默认时返回"未命名对话"', () => {
+    document.body.innerHTML = '';
+    expect(wenxin.getTitle()).toBe('未命名对话');
+  });
+
+  it('isStreaming 无消息时返回 false', () => {
+    expect(wenxin.isStreaming()).toBe(false);
+  });
+
+  it('isStreaming 最后 QA 对 data-chat-status="GENERATING" 时为 true', () => {
+    document.body.innerHTML = `
+      <div class="chat-qa-container" data-chat-status="COMPLETE"></div>
+      <div class="chat-qa-container" data-chat-status="GENERATING"></div>`;
+    expect(wenxin.isStreaming()).toBe(true);
+  });
+
+  it('isStreaming 最后 QA 对 data-chat-status="COMPLETE" 时为 false', () => {
+    document.body.innerHTML = `
+      <div class="chat-qa-container" data-chat-status="GENERATING"></div>
+      <div class="chat-qa-container" data-chat-status="COMPLETE"></div>`;
+    expect(wenxin.isStreaming()).toBe(false);
+  });
+
+  it('isStreaming 兜底：._markdown-content_ 无 _typing-finished_ 时为 true', () => {
+    // 流式生成中存在未完成的 markdown 段（class 含 _markdown-content_ 但不含 _typing-finished_）
+    document.body.innerHTML = `
+      <div class="chat-qa-container" data-chat-status="COMPLETE">
+        <div class="_markdown-content_53we2_1 _no-header_53we2_71"></div>
+      </div>`;
+    expect(wenxin.isStreaming()).toBe(true);
+  });
+
+  it('extractMessages 提取用户消息（data-query 属性）', () => {
+    // 真实场景：.cs-question-bubble[data-query] 含原始问题文本
+    document.body.innerHTML = `
+      <div id="conversation-flow-content">
+        <div class="chat-qa-container" data-qa-pair-id="1" data-chat-status="COMPLETE">
+          <div class="conversation-flow-question-container">
+            <div class="cs-question-bubble" data-query="明天上海下雨吗">
+              <span class="cs-question-pure-text"><span class="_question-line-break_y4jra_5">明天上海下雨吗</span></span>
+            </div>
+          </div>
+          <div class="conversation-flow-answer-container">
+            <div class="ai-entry">
+              <div class="ai-entry-block ai-markdown">
+                <div class="cosd-markdown"><div class="cosd-markdown-content"><div class="marklang">
+                  <p class="marklang-paragraph">明天上海不会下雨。</p>
+                </div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = wenxin.extractMessages();
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0].role).toBe('user');
+    expect(msgs[0].content).toBe('明天上海下雨吗');
+    expect(msgs[1].role).toBe('assistant');
+    expect(msgs[1].content).toContain('明天上海不会下雨');
+  });
+
+  it('extractMessages 思考步骤+正式回答（含 <think> 块）', () => {
+    // 真实场景（wenxin.txt）：.ai-thinking-steps 内多个 ._step_，每个含 .cosd-markdown-content
+    // 部分步骤仅有标题（如"信息整理完成"），无 markdown 内容，应自动跳过
+    document.body.innerHTML = `
+      <div id="conversation-flow-content">
+        <div class="chat-qa-container" data-qa-pair-id="1" data-chat-status="COMPLETE">
+          <div class="conversation-flow-question-container">
+            <div class="cs-question-bubble" data-query="明天上海下雨吗"></div>
+          </div>
+          <div class="conversation-flow-answer-container">
+            <div class="ai-entry">
+              <div class="ai-entry-block ai-thinking-steps">
+                <div class="_thinking-steps_1eyeq_1">
+                  <div class="_collapse-container_er9xf_1">
+                    <header class="root-header"><div class="thinking-steps-title-text">深度思考完成</div></header>
+                    <main>
+                      <div class="_collapse-container_er9xf_1 _step_1eyeq_24">
+                        <main>
+                          <div class="_markdown-content_53we2_1 _typing-finished_53we2_41">
+                            <div class="cosd-markdown"><div class="cosd-markdown-mask"></div><div class="cosd-markdown-content"><div class="marklang">
+                              <p class="marklang-paragraph">用户询问明天上海是否下雨，需要查询天气信息。</p>
+                            </div></div></div>
+                          </div>
+                        </main>
+                      </div>
+                      <div class="_collapse-container_er9xf_1 _step_1eyeq_24">
+                        <header><div class="_title_1eyeq_45">信息整理完成</div></header>
+                        <main></main>
+                      </div>
+                    </main>
+                  </div>
+                </div>
+              </div>
+              <div class="ai-entry-block ai-markdown">
+                <div class="cosd-markdown"><div class="cosd-markdown-content"><div class="marklang">
+                  <p class="marklang-paragraph">明天上海不会下雨，天气为多云转晴。</p>
+                </div></div></div>
+              </div>
+              <div class="ai-entry-block ai-image-scroll">
+                <div class="cosd-image-scroll">图片轮播内容（不提取）</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = wenxin.extractMessages();
+    expect(msgs).toHaveLength(2);
+    expect(msgs[1].role).toBe('assistant');
+    // 思考内容包在 <think> 块中
+    expect(msgs[1].content).toContain(THINK_OPEN);
+    expect(msgs[1].content).toContain(THINK_CLOSE);
+    expect(msgs[1].content).toContain('用户询问明天上海是否下雨');
+    // 仅标题无 markdown 的步骤（"信息整理完成"）不混入
+    expect(msgs[1].content).not.toContain('信息整理完成');
+    // 正式回答在 </think> 之后
+    expect(msgs[1].content).toContain('明天上海不会下雨');
+    // 图片轮播内容不混入
+    expect(msgs[1].content).not.toContain('图片轮播内容');
+    // .cosd-markdown-mask 动画遮罩无文本混入
+    expect(msgs[1].content).not.toContain('markdownMask');
+  });
+
+  it('extractMessages KaTeX 公式提取（<annotation> 源码路径）', () => {
+    // 真实场景（wenxin_math.txt）：KaTeX 保留标准 <annotation encoding="application/x-tex">
+    // html-to-markdown.js 的 katexInline/katexDisplay 规则直接提取 LaTeX 源码
+    document.body.innerHTML = `
+      <div id="conversation-flow-content">
+        <div class="chat-qa-container" data-qa-pair-id="1" data-chat-status="COMPLETE">
+          <div class="conversation-flow-question-container">
+            <div class="cs-question-bubble" data-query="写个复杂的数学公式？"></div>
+          </div>
+          <div class="conversation-flow-answer-container">
+            <div class="ai-entry">
+              <div class="ai-entry-block ai-markdown">
+                <div class="cosd-markdown"><div class="cosd-markdown-content"><div class="marklang">
+                  <p class="marklang-paragraph">爱因斯坦场方程：</p>
+                  <span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msub><mi>R</mi><mrow><mi>μ</mi><mi>ν</mi></mrow></msub></mrow><annotation encoding="application/x-tex">R_{\\mu\\nu} - \\frac{1}{2} R g_{\\mu\\nu} = \\frac{8\\pi G}{c^4} T_{\\mu\\nu}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="mord mathnormal">R</span></span></span></span></span>
+                  <p class="marklang-paragraph">其中 R 是里奇标量。</p>
+                </div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = wenxin.extractMessages();
+    expect(msgs).toHaveLength(2);
+    expect(msgs[1].role).toBe('assistant');
+    // 块级公式输出为 $$...$$
+    expect(msgs[1].content).toContain('$$');
+    expect(msgs[1].content).toContain('R_{\\mu\\nu}');
+    expect(msgs[1].content).toContain('\\frac{8\\pi G}{c^4}');
+    // MathML 层不混入文本
+    expect(msgs[1].content).not.toContain('<math');
+    expect(msgs[1].content).not.toContain('<semantics>');
+    // 正文段落保留
+    expect(msgs[1].content).toContain('爱因斯坦场方程');
+    expect(msgs[1].content).toContain('里奇标量');
+  });
+
+  it('extractMessages 无对话容器时返回空数组', () => {
+    document.body.innerHTML = '<div class="other-content"></div>';
+    expect(wenxin.extractMessages()).toEqual([]);
+  });
+
+  it('extractMessages 用户消息无 data-query 时降级到 .cs-question-pure-text', () => {
+    document.body.innerHTML = `
+      <div id="conversation-flow-content">
+        <div class="chat-qa-container" data-qa-pair-id="1" data-chat-status="COMPLETE">
+          <div class="conversation-flow-question-container">
+            <div class="cs-question-bubble">
+              <span class="cs-question-pure-text"><span class="_question-line-break_y4jra_5">降级问题文本</span></span>
+            </div>
+          </div>
+          <div class="conversation-flow-answer-container">
+            <div class="ai-entry">
+              <div class="ai-entry-block ai-markdown">
+                <div class="cosd-markdown"><div class="cosd-markdown-content"><div class="marklang">
+                  <p class="marklang-paragraph">回答</p>
+                </div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = wenxin.extractMessages();
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0].role).toBe('user');
+    expect(msgs[0].content).toBe('降级问题文本');
+  });
+});
+
