@@ -1529,5 +1529,74 @@ describe('百度文心适配器', () => {
     // 复制/下载按钮图标（空 span）不应产生多余文本
     expect(msgs[1].content).not.toContain('cos-icon');
   });
+
+  it('extractMessages 代码块：.code-header 语言标签不混入代码内容', () => {
+    // 真实场景（wenxin_code.txt）：<pre> 内含 .code-header（语言标签+复制按钮）+ .code-wrapper（行号+代码）
+    // 必须只提取 .code-right > code 内的代码，跳过标题栏"bash"文字和行号占位
+    document.body.innerHTML = `
+      <div id="conversation-flow-content">
+        <div class="chat-qa-container" data-qa-pair-id="1" data-chat-status="COMPLETE">
+          <div class="conversation-flow-question-container">
+            <div class="cs-question-bubble" data-query="写个Hello World脚本"></div>
+          </div>
+          <div class="conversation-flow-answer-container">
+            <div class="ai-entry">
+              <div class="ai-entry-block ai-markdown">
+                <div class="cosd-markdown"><div class="cosd-markdown-content"><div class="marklang">
+                  <p class="marklang-paragraph">以下是一个简单的 Bash "Hello World" 脚本示例：</p>
+                  <pre><div class="code-header"><span class="code-header-left">bash</span><span class="code-header-right"><i class="cos-icon cos-icon-copy"></i></span></div><div class="code-wrapper"><div class="code-left"><div data-line-number="1" class="code-number"></div><div data-line-number="2" class="code-number"></div></div><div class="code-right"><code class="hljs language-bash"><span class="hljs-meta">#!/bin/bash</span>
+<span class="hljs-built_in">echo</span> <span class="hljs-string">"Hello, World!"</span>
+</code></div></div></pre>
+                </div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = wenxin.extractMessages();
+    expect(msgs).toHaveLength(2);
+    expect(msgs[1].role).toBe('assistant');
+    // 代码块正确提取，带 bash 语言标签
+    expect(msgs[1].content).toContain('```bash');
+    expect(msgs[1].content).toContain('#!/bin/bash');
+    expect(msgs[1].content).toContain('echo "Hello, World!"');
+    // 标题栏"bash"文字不作为独立文本段落重复出现
+    // （代码块内的 #!/bin/bash 是代码内容，允许；单独一行的"bash"是标题栏泄漏）
+    expect(msgs[1].content).not.toMatch(/\nbash\n/);
+    // 行号占位 div 不产生文本
+    expect(msgs[1].content).not.toContain('data-line-number');
+    // 复制按钮图标不混入
+    expect(msgs[1].content).not.toContain('cos-icon-copy');
+    // 代码块正确闭合
+    expect(msgs[1].content).toMatch(/```bash[\s\S]*?```/);
+  });
+
+  it('extractMessages 代码块：text 语言标签和无语言兜底', () => {
+    // 真实场景（wenxin_code.txt）：输出块用 text 语言标签
+    document.body.innerHTML = `
+      <div id="conversation-flow-content">
+        <div class="chat-qa-container" data-qa-pair-id="1" data-chat-status="COMPLETE">
+          <div class="conversation-flow-question-container">
+            <div class="cs-question-bubble" data-query="运行结果"></div>
+          </div>
+          <div class="conversation-flow-answer-container">
+            <div class="ai-entry">
+              <div class="ai-entry-block ai-markdown">
+                <div class="cosd-markdown"><div class="cosd-markdown-content"><div class="marklang">
+                  <p class="marklang-paragraph">运行后输出：</p>
+                  <pre><div class="code-header"><span class="code-header-left">text</span><span class="code-header-right"><i class="cos-icon cos-icon-copy"></i></span></div><div class="code-wrapper"><div class="code-left"><div data-line-number="1" class="code-number"></div></div><div class="code-right"><code>Hello, World!
+</code></div></div></pre>
+                </div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = wenxin.extractMessages();
+    expect(msgs).toHaveLength(2);
+    // text 语言标签正常输出
+    expect(msgs[1].content).toContain('```text');
+    expect(msgs[1].content).toContain('Hello, World!');
+  });
 });
 
