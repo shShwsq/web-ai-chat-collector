@@ -1424,5 +1424,58 @@ describe('百度文心适配器', () => {
     expect(msgs[0].role).toBe('user');
     expect(msgs[0].content).toBe('降级问题文本');
   });
+
+  it('extractMessages 多个 .ai-entry-block.ai-markdown 块全部拼接（wenxin2.txt 真实结构）', () => {
+    // 真实场景（wenxin2.txt）：长回答被拆成多个 markdown 块，中间夹图片轮播
+    // 必须用 querySelectorAll 收集所有 markdown 块并拼接，否则只拿到第一段
+    document.body.innerHTML = `
+      <div id="conversation-flow-content">
+        <div class="chat-qa-container" data-qa-pair-id="1" data-chat-status="COMPLETE">
+          <div class="conversation-flow-question-container">
+            <div class="cs-question-bubble" data-query="今天的黄金价格"></div>
+          </div>
+          <div class="conversation-flow-answer-container">
+            <div class="ai-entry">
+              <div class="ai-entry-block ai-markdown">
+                <div class="cosd-markdown"><div class="cosd-markdown-content"><div class="marklang">
+                  <h3>一、上海黄金交易所基准价</h3>
+                  <p class="marklang-paragraph">该价格为银行金条、投资金饰及回收市场的核心参考依据。</p>
+                </div></div></div>
+              </div>
+              <div class="ai-entry-block ai-image-scroll">
+                <div class="cosd-image-scroll">图片轮播1（不提取）</div>
+              </div>
+              <div class="ai-entry-block ai-markdown">
+                <div class="cosd-markdown"><div class="cosd-markdown-content"><div class="marklang">
+                  <h3>二、品牌金店零售价</h3>
+                  <p class="marklang-paragraph">周大福、老凤祥等品牌金店今日金价。</p>
+                </div></div></div>
+              </div>
+              <div class="ai-entry-block ai-image-scroll">
+                <div class="cosd-image-scroll">图片轮播2（不提取）</div>
+              </div>
+              <div class="ai-entry-block ai-markdown">
+                <div class="cosd-markdown"><div class="cosd-markdown-content"><div class="marklang">
+                  <h3>三、投资建议</h3>
+                  <p class="marklang-paragraph">短期波动属正常现象，建议长期持有。</p>
+                </div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = wenxin.extractMessages();
+    expect(msgs).toHaveLength(2);
+    expect(msgs[1].role).toBe('assistant');
+    // 三个 markdown 块的内容都要提取到
+    expect(msgs[1].content).toContain('一、上海黄金交易所基准价');
+    expect(msgs[1].content).toContain('核心参考依据');
+    expect(msgs[1].content).toContain('二、品牌金店零售价');
+    expect(msgs[1].content).toContain('周大福');
+    expect(msgs[1].content).toContain('三、投资建议');
+    expect(msgs[1].content).toContain('长期持有');
+    // 图片轮播内容不混入
+    expect(msgs[1].content).not.toContain('图片轮播');
+  });
 });
 

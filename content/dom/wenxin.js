@@ -207,10 +207,17 @@ DOM_ADAPTERS.wenxin = {
     }
 
     // 2. 提取正式回答
-    const markdownBlock = answerContainer.querySelector('.ai-entry-block.ai-markdown');
-    if (markdownBlock) {
-      answer = DOM_ADAPTERS.wenxin._extractMarkdownText(markdownBlock);
-      console.log('[Wenxin/DOM] 正式回答长度=%d', answer.length);
+    // 注意：文心会把长回答拆成多个 .ai-entry-block.ai-markdown，中间夹 .ai-entry-block.ai-image-scroll
+    //       必须用 querySelectorAll 收集所有 markdown 块并拼接，否则只拿到第一段
+    const markdownBlocks = answerContainer.querySelectorAll('.ai-entry-block.ai-markdown');
+    if (markdownBlocks.length > 0) {
+      const parts = [];
+      for (const block of markdownBlocks) {
+        const text = DOM_ADAPTERS.wenxin._extractMarkdownText(block);
+        if (text.trim()) parts.push(text.trim());
+      }
+      answer = parts.join('\n\n');
+      console.log('[Wenxin/DOM] 正式回答: %d 个 markdown 块, 总长度=%d', markdownBlocks.length, answer.length);
     } else {
       console.log('[Wenxin/DOM] 未找到 .ai-entry-block.ai-markdown');
     }
