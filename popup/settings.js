@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const platformDoubao = document.getElementById('platformDoubao');
   const platformKimi = document.getElementById('platformKimi');
   const platformYuanbao = document.getElementById('platformYuanbao');
+  const platformWenxin = document.getElementById('platformWenxin');
 
   const embeddingProvider = document.getElementById('embeddingProvider');
   const embeddingKeyLabel = document.getElementById('embeddingKeyLabel');
@@ -78,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
       platformDoubao: platformDoubao.checked,
       platformKimi: platformKimi.checked,
       platformYuanbao: platformYuanbao.checked,
+      platformWenxin: platformWenxin.checked,
       embeddingProvider: embeddingProvider.value,
       embeddingModel: embeddingModel.value,
       dashscopeEmbeddingKey: dashscopeEmbeddingKey.value,
@@ -613,6 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
       platformDoubao.checked = platformResp.doubao === true;
       platformKimi.checked = platformResp.kimi === true;
       platformYuanbao.checked = platformResp.yuanbao === true;
+      platformWenxin.checked = platformResp.wenxin === true;
     }
 
     // 平台提取模式（网络拦截 / DOM提取）
@@ -626,7 +629,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setMode('qianwen', modeResp.qianwen || 'dom');
       setMode('fudan', modeResp.fudan || 'dom');
       setMode('doubao', modeResp.doubao || 'dom');
-      // Kimi/元宝 固定 DOM，无 radio 可设
+      // Kimi/元宝/文心 固定 DOM，无 radio 可设
     }
 
     // Embedding 设置
@@ -743,7 +746,8 @@ document.addEventListener('DOMContentLoaded', () => {
         fudan: platformFudan.checked,
         doubao: platformDoubao.checked,
         kimi: platformKimi.checked,
-        yuanbao: platformYuanbao.checked
+        yuanbao: platformYuanbao.checked,
+        wenxin: platformWenxin.checked
       }
     });
 
@@ -761,7 +765,8 @@ document.addEventListener('DOMContentLoaded', () => {
         fudan: getMode('fudan'),
         doubao: getMode('doubao'),
         kimi: 'dom',
-        yuanbao: 'dom'
+        yuanbao: 'dom',
+        wenxin: 'dom'
       }
     });
 

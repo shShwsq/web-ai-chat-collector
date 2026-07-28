@@ -134,7 +134,8 @@ const DEFAULT_PLATFORM_MODES = {
   fudan: 'dom',
   doubao: 'dom',
   kimi: 'dom',          // Kimi 使用 WS + protobuf，仅支持 DOM
-  yuanbao: 'dom'        // 元宝使用 WS + 自定义协议，仅支持 DOM
+  yuanbao: 'dom',       // 元宝使用 WS + 自定义协议，仅支持 DOM
+  wenxin: 'dom'         // 文心使用 WS + 自定义协议，仅支持 DOM
 };
 
 async function getPlatformModes() {
