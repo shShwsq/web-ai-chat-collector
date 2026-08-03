@@ -27,6 +27,9 @@ function runInWindow(filePath) {
   //   - 解构声明 `const { a, b } = obj` 转 `var { a, b } = obj` 在 ES2015+ 中合法
   //   - 块级作用域内的 const/let（如 if/for 内）转 var 会改变作用域，但我们的源码中
   //     这类声明都是局部变量，没有跨作用域引用，行为仍一致
+  //   - 已知限制：for-of 内创建闭包（如 IndexedDB onsuccess 回调）时，const 转 var
+  //     会使所有迭代共享同一变量，闭包捕获的是最后一次迭代的值。
+  //     源码中遇到此场景时改用 forEach（回调参数天然隔离作用域），不要用 for-of + 闭包。
   //   - 注意：不处理字符串/正则中的 const/let 关键字（源码中无此情况）
   const modified = code
     .replace(/\bconst\s+/g, 'var ')
@@ -95,7 +98,14 @@ export function loadDb() {
     _stripAugmentBlocks: window._stripAugmentBlocks.bind(window),
     _reorderByDomOrder: window._reorderByDomOrder.bind(window),
     tokenize: window.tokenize.bind(window),
-    highlightSearchResult: window.highlightSearchResult.bind(window)
+    highlightSearchResult: window.highlightSearchResult.bind(window),
+    // IndexedDB 索引相关（配合 fake-indexeddb 测试）
+    updateSearchIndex: window.updateSearchIndex,
+    clearConvFromIndex: window.clearConvFromIndex,
+    openDB: window.openDB,
+    initDB: window.initDB,
+    STORE_CONVERSATIONS: window.STORE_CONVERSATIONS,
+    STORE_INDEX: window.STORE_INDEX
   };
 }
 
