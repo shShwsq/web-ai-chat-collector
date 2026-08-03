@@ -53,6 +53,14 @@ jobs:
           fi
           echo "All JS files passed syntax check"
 
+      - name: Run unit tests
+        # 跑测试套件：DOM 提取回归保护 + 纯函数单测 + IndexedDB 索引测试（fake-indexeddb）
+        # 测试依赖：vitest/jsdom/fake-indexeddb（devDependencies）
+        # npm ci 按 package-lock.json 安装，比 npm install 更严格、更快
+        run: |
+          npm ci
+          npm test
+
       - name: Validate models.json
         run: |
           python3 -c "

@@ -5,6 +5,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // 在所有测试前注入 fake-indexeddb（源码中 indexedDB.open 才能工作）
+    setupFiles: ['./tests/helpers/setup-indexeddb.js'],
     // 测试加载源文件需要 ?raw 拿到字符串后再 eval 注入到 jsdom window
     deps: {
       inline: [/\.raw$/]
