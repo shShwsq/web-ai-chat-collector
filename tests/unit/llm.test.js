@@ -363,6 +363,8 @@ describe('_buildThinkingExtras', () => {
 
 // =================================================================
 // AIAssistant._parseEmbId：解析 chunk ID
+// 解析策略：从末尾反向取固定 4 段（'msg'/msgHash/'chunk'/chunkIdx），剩余整体归 convId。
+// 这样不管 convId 内部含多少个 '::' 都不会影响末尾字段定位。
 // =================================================================
 describe('AIAssistant._parseEmbId', () => {
   it('合法 ID 正确解析', () => {
@@ -375,10 +377,28 @@ describe('AIAssistant._parseEmbId', () => {
       .toEqual({ msgHash: 'xyz', chunkIdx: 99 });
   });
 
-  it('convId 中含 - 也能正确解析（hash 取第 3 段）', () => {
-    // convId = 'deepseek-abc'，被 :: 分隔后 parts[0]='deepseek-abc'
+  it('convId 中含 - 也能正确解析', () => {
     expect(AIAssistant._parseEmbId('deepseek-abc::msg::hash::chunk::1'))
       .toEqual({ msgHash: 'hash', chunkIdx: 1 });
+  });
+
+  it('【核心回归】convId 本身含 :: 也能正确解析（生产真实格式）', () => {
+    // 生产中 convId = `${platform}::${platformConversationId}`，本身含 '::'。
+    // 旧实现按正向 split('::') 取 parts[1]==='msg' 判断，convId 内的 '::' 会把字段下标错位，
+    // 永远返回 null，导致父子文档检索完全失效。
+    // 新实现从末尾反取固定 4 段，前缀无论含多少 '::' 都整体归 convId，不再错位。
+    expect(AIAssistant._parseEmbId('doubao::abc123::msg::hash::chunk::0'))
+      .toEqual({ msgHash: 'hash', chunkIdx: 0 });
+    expect(AIAssistant._parseEmbId('deepseek::conv-456::msg::h1::chunk::7'))
+      .toEqual({ msgHash: 'h1', chunkIdx: 7 });
+    expect(AIAssistant._parseEmbId('kimi::8f3a-2b1c::msg::d4e5::chunk::12'))
+      .toEqual({ msgHash: 'd4e5', chunkIdx: 12 });
+  });
+
+  it('【极端】convId 含多个 :: 也能正确解析', () => {
+    // 假设平台名或会话 ID 本身就含 ::（理论上不会，但反取方案应能兜住）
+    expect(AIAssistant._parseEmbId('a::b::c::msg::h::chunk::3'))
+      .toEqual({ msgHash: 'h', chunkIdx: 3 });
   });
 
   it('parts 长度不足 5 → 返回 null', () => {
@@ -386,11 +406,12 @@ describe('AIAssistant._parseEmbId', () => {
     expect(AIAssistant._parseEmbId('a::b::c::d')).toBeNull();
   });
 
-  it('parts[1] !== "msg" → 返回 null', () => {
+  it('倒数第 4 段 !== "msg" → 返回 null', () => {
+    // 反取方案下，parts[1] 是否为 'msg' 已不再相关；只看末尾固定 4 段
     expect(AIAssistant._parseEmbId('conv::notmsg::hash::chunk::0')).toBeNull();
   });
 
-  it('parts[3] !== "chunk" → 返回 null', () => {
+  it('倒数第 2 段 !== "chunk" → 返回 null', () => {
     expect(AIAssistant._parseEmbId('conv::msg::hash::notchunk::0')).toBeNull();
   });
 
@@ -411,11 +432,12 @@ describe('AIAssistant._parseEmbId', () => {
   });
 
   it('实际项目使用的 chunk ID 格式都能解析', () => {
+    // 全部使用真实 convId 格式：${platform}::${platformConversationId}
     const ids = [
-      'deepseek::msg::a1b2c3::chunk::0',
-      'kimi::msg::d4e5f6::chunk::3',
-      'qianwen::msg::g7h8i9::chunk::10',
-      'doubao::msg::j0k1l2::chunk::0'
+      'deepseek::a1b2c3::msg::h1::chunk::0',
+      'kimi::d4e5f6::msg::h2::chunk::3',
+      'qianwen::g7h8i9::msg::h3::chunk::10',
+      'doubao::j0k1l2::msg::h4::chunk::0'
     ];
     for (const id of ids) {
       const result = AIAssistant._parseEmbId(id);
@@ -423,6 +445,22 @@ describe('AIAssistant._parseEmbId', () => {
       expect(result).toHaveProperty('msgHash');
       expect(result).toHaveProperty('chunkIdx');
       expect(result.chunkIdx).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('【迁移兼容】线上已有旧格式数据可被正确解析（零迁移直接修复）', () => {
+    // 反取方案最大优势：编码端格式未变，旧数据用同一套解析逻辑即可正确解析，
+    // 修复上线后旧 chunk 立即恢复父子文档检索能力，无需重建索引。
+    const oldIds = [
+      'doubao::abc123::msg::oldhash::chunk::0',
+      'deepseek::conv-456::msg::h1::chunk::3',
+      'kimi::abc::msg::xyz::chunk::99'
+    ];
+    for (const id of oldIds) {
+      const result = AIAssistant._parseEmbId(id);
+      expect(result).not.toBeNull();
+      expect(result).toHaveProperty('msgHash');
+      expect(result).toHaveProperty('chunkIdx');
     }
   });
 });
