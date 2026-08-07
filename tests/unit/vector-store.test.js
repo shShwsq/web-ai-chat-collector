@@ -83,7 +83,7 @@ describe('_normalizeSupabaseUrl', () => {
 // =================================================================
 describe('_strToQdrantUUID', () => {
   it('同一字符串每次转换结果相同（确定性）', () => {
-    const id = 'deepseek::msg::abc123::chunk::0';
+    const id = 'deepseek::abc::msg::abc123::chunk::0';
     expect(VectorStore._strToQdrantUUID(id)).toBe(VectorStore._strToQdrantUUID(id));
   });
 
@@ -105,11 +105,12 @@ describe('_strToQdrantUUID', () => {
 
   it('常见 chunk ID 格式都能生成合法 UUID', () => {
     // 项目实际使用的 chunk ID 格式：${convId}::msg::${msgHash}::chunk::${chunkIdx}
+    // convId 本身形如 ${platform}::${platformConversationId}，因此用真实格式作样例
     const ids = [
-      'deepseek::msg::hash1::chunk::0',
-      'deepseek::msg::hash1::chunk::1',
-      'kimi::msg::abc::chunk::0',
-      'qianwen::msg::xyz::chunk::99'
+      'deepseek::hash1::msg::m1::chunk::0',
+      'deepseek::hash1::msg::m1::chunk::1',
+      'kimi::abc::msg::m2::chunk::0',
+      'qianwen::xyz::msg::m3::chunk::99'
     ];
     for (const id of ids) {
       expect(VectorStore._strToQdrantUUID(id)).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
@@ -117,7 +118,7 @@ describe('_strToQdrantUUID', () => {
   });
 
   it('只有 chunkIdx 不同的 ID 生成不同 UUID', () => {
-    const base = 'deepseek::msg::hash1::chunk::';
+    const base = 'deepseek::hash1::msg::m1::chunk::';
     const u0 = VectorStore._strToQdrantUUID(base + '0');
     const u1 = VectorStore._strToQdrantUUID(base + '1');
     const u2 = VectorStore._strToQdrantUUID(base + '2');

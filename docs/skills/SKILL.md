@@ -115,8 +115,8 @@ JSON 数组，按相似度从高到低排序：
 ```json
 [
   {
-    "id": "conv123::msg::abc::chunk::0",
-    "convId": "conv123",
+    "id": "deepseek::conv123::msg::abc::chunk::0",
+    "convId": "deepseek::conv123",
     "title": "Docker 容器安全加固",
     "platform": "deepseek",
     "role": "assistant",
