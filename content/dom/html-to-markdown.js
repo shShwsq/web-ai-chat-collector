@@ -331,6 +331,21 @@
     }
   });
 
+  // 自定义规则：过滤 data: URI 内联图片
+  // 装饰性图标（工具图标、箭头等）常以 data:image/png;base64,... 内联，
+  // 转成 ![](data:...) 会产生数 KB 甚至更大的噪声串污染 Markdown 和向量库；
+  // 真实内容图片（用户上传、回答插图）在各平台均为 http(s)/blob URL 形式，不受影响
+  turndownService.addRule('skipDataUriImages', {
+    filter: function (node) {
+      if (node.nodeName !== 'IMG') return false;
+      var src = node.getAttribute('src') || '';
+      return src.indexOf('data:') === 0;
+    },
+    replacement: function () {
+      return '';
+    }
+  });
+
   // 自定义规则：KaTeX 行内公式
   // 标准结构：<span class="katex"><span class="katex-mathml"><math>...<annotation encoding="application/x-tex">LATEX</annotation></math></span><span class="katex-html">...</span></span>
   // 降级结构（Kimi 等）：仅有 .katex-html，无 <annotation>，调用 KatexHtmlToLatex 反向解析
@@ -430,6 +445,10 @@
     '.hyc-component-deepsearch-cot__think__content__item-loading',
     // 元宝 Agent 模式折叠箭头图标
     '.agent-process-timeline_groupChevron',
+    // 复旦智能体 runtime 转录的工具图标容器（.runtime_transcript_command_icon，
+    // 内含 data: URI base64 图标；转录文本"工具 bash 执行完成"等保留，
+    // data: 图片另有 skipDataUriImages 规则兜底）
+    '.runtime_transcript_command_icon',
     // 元宝文件卡片（.ybc-p--file-card，含文件图标 + 文件名 + 截断的代码预览）
     // 文件名已在正文中提及，代码预览不完整（被截断），文件图标为装饰性，整块过滤
     '.ybc-p--file-card',

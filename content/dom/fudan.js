@@ -26,6 +26,10 @@
 //               .md-editor-preview-wrapper > .md-editor-preview    助手回答 markdown
 //                 h1/h2/h3、p、strong、ul/ol/li、hr、blockquote、table
 //                 a.citation-link[href]                 引用编号（文本=N，href=URL，对应 link_item 序号）
+//                 .agent_runtime_plugin                 智能体工具调用转录（agent 模式回答内嵌，可多个）
+//                   .runtime_transcript_command_icon    工具图标（data: URI base64，噪声，html-to-markdown.js 移除）
+//                   .runtime_transcript_text            转录文本（"工具 bash 执行完成"等，保留）
+//                   button.runtime_transcript_arrow     展开箭头（噪声，button 已被移除）
 //
 // 搜索来源 URL 补全：link_box 内 link_item 仅有标题，URL 从回答中的 a.citation-link 按编号映射获取
 
